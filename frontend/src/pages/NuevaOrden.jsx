@@ -8,6 +8,7 @@ function NuevaOrden() {
   // --- ESTADOS (La memoria de la pantalla) ---
   const [clientes, setClientes] = useState([])
   const [vehiculos, setVehiculos] = useState([])
+  const [listaMecanicos, setListaMecanicos] = useState([]) // <--- NUEVO: Lista para guardar mecánicos reales
   
   // Opción: ¿Es cliente nuevo?
   const [esNuevoCliente, setEsNuevoCliente] = useState(false)
@@ -29,18 +30,32 @@ function NuevaOrden() {
     mecanico_asignado: ''
   })
 
-  // Al iniciar, cargamos la lista de clientes por si acaso busca uno existente
+  // Al iniciar, cargamos la lista de clientes, vehiculos Y MECÁNICOS
   useEffect(() => {
     cargarCatalogos()
   }, [])
 
   const cargarCatalogos = async () => {
     try {
+      // 1. Cargar Clientes
       const resC = await axios.get('https://api-taller-luis.onrender.com/clientes/')
       setClientes(resC.data)
+
+      // 2. Cargar Vehículos
       const resV = await axios.get('https://api-taller-luis.onrender.com/vehiculos/')
       setVehiculos(resV.data)
-    } catch (error) { console.error(error) }
+
+      // 3. Cargar Usuarios (Mecánicos) <--- NUEVO CÓDIGO AQUI
+      const resU = await axios.get('https://api-taller-luis.onrender.com/usuarios/')
+      
+      // Filtramos: Solo queremos ver Mecánicos o Admins en la lista
+      // (Si aún no usas roles en la BD, mostrará a todos)
+      const soloMecanicos = resU.data.filter(usuario => 
+        usuario.rol === 'mecanico' || usuario.rol === 'admin' || !usuario.rol
+      );
+      setListaMecanicos(soloMecanicos);
+
+    } catch (error) { console.error("Error cargando datos:", error) }
   }
 
   // --- LÓGICA DE BÚSQUEDA (Igual que antes) ---
@@ -93,7 +108,7 @@ function NuevaOrden() {
             vehiculo_id: idFinalVehiculo,
             kilometraje: formData.kilometraje || 0,
             nivel_gasolina: formData.nivel_gasolina,
-            mecanico_asignado: formData.mecanico_asignado || "Sin Asignar"
+            mecanico_asignado: formData.mecanico_asignado || null // Mandamos null si no selecciona nadie
         }
 
         await axios.post('https://api-taller-luis.onrender.com/ordenes/', datosOrden)
@@ -154,16 +169,13 @@ function NuevaOrden() {
                     </datalist>
                 </div>
             ) : (
-                // MODO REGISTRO (Si es cliente nuevo, seguro trae carro nuevo)
+                // MODO REGISTRO
                 <div>
                     <h4 style={{ margin: '0 0 10px 0' }}>Datos del Vehículo Nuevo:</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', backgroundColor: '#fafafa', padding: '10px', borderRadius: '5px' }}>
                         <input type="text" placeholder="Marca (Ej: Nissan)" value={nuevoVehiculo.marca} onChange={e => setNuevoVehiculo({...nuevoVehiculo, marca: e.target.value})} style={{ padding: '8px' }} />
                         <input type="text" placeholder="Modelo (Ej: Tsuru)" value={nuevoVehiculo.modelo} onChange={e => setNuevoVehiculo({...nuevoVehiculo, modelo: e.target.value})} style={{ padding: '8px' }} />
-                        
-                        {/* AQUÍ ESTÁ EL CAMPO DE AÑO QUE PEDISTE */}
                         <input type="number" placeholder="Año (Ej: 2015)" value={nuevoVehiculo.anio} onChange={e => setNuevoVehiculo({...nuevoVehiculo, anio: e.target.value})} style={{ padding: '8px' }} />
-                        
                         <input type="text" placeholder="Placas" value={nuevoVehiculo.placas} onChange={e => setNuevoVehiculo({...nuevoVehiculo, placas: e.target.value.toUpperCase()})} style={{ padding: '8px' }} />
                         <input type="text" placeholder="Color" value={nuevoVehiculo.color} onChange={e => setNuevoVehiculo({...nuevoVehiculo, color: e.target.value})} style={{ padding: '8px' }} />
                     </div>
@@ -183,11 +195,21 @@ function NuevaOrden() {
             </div>
         </div>
 
+        {/* --- AQUI ESTA EL CAMBIO VISUAL DE LOS MECANICOS --- */}
         <div>
             <label>🔧 Asignar Mecánico (Opcional):</label>
-            <select value={formData.mecanico_asignado} onChange={e => setFormData({...formData, mecanico_asignado: e.target.value})} style={{ width: '100%', padding: '10px', marginTop: '5px' }}>
+            <select 
+                value={formData.mecanico_asignado} 
+                onChange={e => setFormData({...formData, mecanico_asignado: e.target.value})} 
+                style={{ width: '100%', padding: '10px', marginTop: '5px' }}
+            >
                 <option value="">-- Cualquiera disponible --</option>
-                {["Pedro", "Luis", "Carlos", "Ana"].map(m => <option key={m} value={m}>{m}</option>)}
+                {/* Ahora mapeamos la lista real que trajimos de internet */}
+                {listaMecanicos.map(mecanico => (
+                    <option key={mecanico.id} value={mecanico.id}>
+                        {mecanico.nombre}
+                    </option>
+                ))}
             </select>
         </div>
 
