@@ -14,38 +14,71 @@ function Navbar() {
 
   return (
     <nav style={{ 
-      backgroundColor: '#1a237e', padding: '15px 20px', 
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      color: 'white', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+      backgroundColor: '#1a237e', 
+      color: 'white', 
+      marginBottom: '20px', 
+      boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+      display: 'flex',
+      flexDirection: 'column' // <--- ESTO HACE QUE SEAN DOS FILAS
     }}>
-      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
-        🚀 Taller Luis <span style={{fontSize:'12px', fontWeight:'normal', color:'#bbdefb'}}>| Hola, {usuarioNombre}</span>
+      
+      {/* --- FILA 1: TÍTULO Y SALUDO --- */}
+      <div style={{ 
+          padding: '15px 20px', 
+          borderBottom: '1px solid rgba(255,255,255,0.1)', // Una línea divisoria sutil
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+      }}>
+        <div style={{ fontSize: '22px', fontWeight: 'bold' }}>
+          🚀 Taller Luis <span style={{fontSize:'14px', fontWeight:'normal', color:'#bbdefb', marginLeft: '10px'}}>| Hola, {usuarioNombre}</span>
+        </div>
       </div>
       
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+      {/* --- FILA 2: BOTONES DE NAVEGACIÓN --- */}
+      <div style={{ 
+          padding: '10px 20px', 
+          display: 'flex', 
+          gap: '15px', 
+          alignItems: 'center',
+          flexWrap: 'wrap', // Si son muchos botones, bajan de línea en celular
+          backgroundColor: '#151b60' // Un azul un pelito más oscuro para diferenciar
+      }}>
         
-        {/* BOTONES PÚBLICOS (Depende de permisos, pero simplificado por rol) */}
-        <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>👨‍🔧 Taller</Link>
+        {/* BOTONES PÚBLICOS */}
+        <Link to="/" style={{ color: 'white', textDecoration: 'none', padding: '5px 10px', borderRadius: '4px', border: '1px solid transparent', transition: '0.3s' }}>
+            👨‍🔧 Taller
+        </Link>
         
-        <Link to="/recepcion" style={{ color: '#ffeb3b', textDecoration: 'none', fontWeight: 'bold' }}>🖥️ Recepción</Link>
+        <Link to="/recepcion" style={{ color: '#ffeb3b', textDecoration: 'none', fontWeight: 'bold', padding: '5px 10px' }}>
+            🖥️ Recepción
+        </Link>
 
         {/* SOLO ADMIN VE ESTOS BOTONES */}
         {rolUsuario === 'admin' && (
             <>
-                <Link to="/config" style={{ color: '#b3e5fc', textDecoration: 'none' }}>⚙️ Config</Link>
-                <Link to="/admin-usuarios" style={{ color: '#e1bee7', textDecoration: 'none', fontWeight: 'bold' }}>👥 Usuarios</Link>
+                <Link to="/config" style={{ color: '#b3e5fc', textDecoration: 'none', padding: '5px 10px' }}>
+                    ⚙️ Config
+                </Link>
+                <Link to="/admin-usuarios" style={{ color: '#e1bee7', textDecoration: 'none', fontWeight: 'bold', padding: '5px 10px' }}>
+                    👥 Usuarios
+                </Link>
             </>
         )}
 
-        <button 
-            onClick={cerrarSesion}
-            style={{ 
-                backgroundColor: 'transparent', border: '1px solid #ef5350', 
-                color: '#ef5350', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' 
-            }}
-        >
-            Salir
-        </button>
+        {/* EMPUJAMOS EL BOTÓN DE SALIR A LA DERECHA */}
+        <div style={{ marginLeft: 'auto' }}>
+            <button 
+                onClick={cerrarSesion}
+                style={{ 
+                    backgroundColor: 'transparent', border: '1px solid #ef5350', 
+                    color: '#ef5350', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer',
+                    fontSize: '12px'
+                }}
+            >
+                Cerrar Sesión
+            </button>
+        </div>
 
       </div>
     </nav>

@@ -84,7 +84,7 @@ function Configuracion() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto' }}>
       <h1 style={{ color: '#1a237e' }}>⚙️ Configuración del Taller</h1>
-      <p>Administra la "Lista Negra" y precios sugeridos.</p>
+      <p>Administra la "Lista de Servicios" y precios sugeridos.</p>
 
       {/* FORMULARIO INTELIGENTE (AGREGAR / EDITAR) */}
       <div style={{ 
