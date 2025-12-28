@@ -15,7 +15,8 @@ function Configuracion() {
   }, [])
 
   const cargarFallas = async () => {
-    const res = await axios.get(''https://api-taller-luis.onrender.com'/config/fallas-comunes')
+    // CORREGIDO: URL limpia con una sola comilla al inicio y final
+    const res = await axios.get('https://api-taller-luis.onrender.com/config/fallas-comunes')
     setFallas(res.data)
   }
 
@@ -41,7 +42,8 @@ function Configuracion() {
     try {
         if (idEdicion) {
             // MODO EDICIÓN (PUT)
-            await axios.put(`'https://api-taller-luis.onrender.com'/config/fallas-comunes/${idEdicion}`, {
+            // CORREGIDO: Usamos backticks (`) porque hay una variable ${idEdicion}
+            await axios.put(`https://api-taller-luis.onrender.com/config/fallas-comunes/${idEdicion}`, {
                 nombre_falla: nuevaFalla.nombre,
                 precio_sugerido: parseFloat(nuevaFalla.precio),
                 sistema_id: 2
@@ -49,7 +51,8 @@ function Configuracion() {
             alert("✅ Servicio actualizado correctamente")
         } else {
             // MODO CREACIÓN (POST)
-            await axios.post(''https://api-taller-luis.onrender.com'/config/fallas-comunes', {
+            // CORREGIDO: URL limpia
+            await axios.post('https://api-taller-luis.onrender.com/config/fallas-comunes', {
                 nombre_falla: nuevaFalla.nombre,
                 precio_sugerido: parseFloat(nuevaFalla.precio),
                 sistema_id: 2
@@ -70,7 +73,8 @@ function Configuracion() {
   const borrarFalla = async (id) => {
     if(!confirm("¿Seguro que quieres borrar este servicio?")) return
     try {
-        await axios.delete(`'https://api-taller-luis.onrender.com'/config/fallas-comunes/${id}`)
+        // CORREGIDO: Usamos backticks (`) para la variable ${id}
+        await axios.delete(`https://api-taller-luis.onrender.com/config/fallas-comunes/${id}`)
         cargarFallas()
     } catch (error) {
         alert("Error al borrar")

@@ -11,7 +11,8 @@ function Recepcion() {
   }, [])
 
   const cargarOrdenes = async () => {
-    const res = await axios.get(''https://api-taller-luis.onrender.com'/ordenes/')
+    // CORREGIDO: URL limpia y correcta
+    const res = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
     setOrdenes(res.data)
   }
 

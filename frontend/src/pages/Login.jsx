@@ -17,7 +17,8 @@ function Login() {
     formData.append("password", credenciales.password)
 
     try {
-      const res = await axios.post(''https://api-taller-luis.onrender.com'/token', formData)
+      // CORREGIDO: URL limpia sin comillas intermedias
+      const res = await axios.post('https://api-taller-luis.onrender.com/token', formData)
       
       // Guardamos el token (el gafete) en la memoria del navegador
       localStorage.setItem("token", res.data.access_token)
