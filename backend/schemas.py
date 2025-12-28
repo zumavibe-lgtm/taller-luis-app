@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from typing import List
 
 # --- USUARIOS (LOGIN Y GESTIÓN) ---
 class UsuarioCreate(BaseModel):
@@ -8,15 +7,22 @@ class UsuarioCreate(BaseModel):
     username: str
     password: str
     rol: str
-    email: Optional[str] = None # <--- AQUÍ ESTÁ LA CLAVE: Puede ser nulo
+    email: Optional[str] = None
     permisos: List[str] = []
+
+class UsuarioUpdate(BaseModel):
+    nombre: str
+    email: str
+    rol: str
+    permisos: List[str]
 
 class UsuarioResponse(BaseModel):
     id: int
     nombre: str
     username: str
+    email: Optional[str]
     rol: str
-    permisos: str # Se devuelve como string separado por comas
+    permisos: str 
     activo: bool
     class Config:
         from_attributes = True
@@ -75,7 +81,21 @@ class OrdenResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- DIAGNÓSTICO Y REFACCIONES ---
+# --- DETALLES (SERVICIOS Y REFACCIONES) ---
+# Este es vital para que el frontend vea los estados
+class OrdenDetalleResponse(BaseModel):
+    id: int
+    orden_id: int
+    sistema_origen: str
+    falla_detectada: str
+    precio: float
+    tipo: str       # 'falla', 'refaccion', 'nota'
+    estado: str     # 'pendiente', 'autorizado', 'terminado'
+    es_refaccion_cliente: bool # Para saber si poner ($0)
+    
+    class Config:
+        from_attributes = True
+
 class DetalleDiagnosticoCreate(BaseModel):
     fallas_ids: List[int]
     nota_libre: Optional[str] = None
@@ -85,10 +105,12 @@ class RefaccionCreate(BaseModel):
     precio_unitario: float
     traido_por_cliente: bool = False
 
-# --- NUEVO: PARA ACTUALIZAR PRECIOS EN CAJA ---
+# --- ACTUALIZACIONES ---
 class DetallePrecioUpdate(BaseModel):
     nuevo_precio: float
-# ----------------------------------------------
+
+class EstadoDetalleUpdate(BaseModel):
+    estado: str
 
 # --- CATÁLOGOS ---
 class FallaCreate(BaseModel):

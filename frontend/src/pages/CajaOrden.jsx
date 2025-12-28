@@ -31,10 +31,12 @@ function CajaOrden() {
 
   const cargarDatos = async () => {
     try {
+      // CORREGIDO: URL limpia sin comillas dobles
       const resOrdenes = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       const miOrden = resOrdenes.data.find(o => o.id == id)
       setOrden(miOrden)
 
+      // CORREGIDO: Template string con backticks (`) correcto
       const resDetalles = await axios.get(`https://api-taller-luis.onrender.com/ordenes/${id}/detalles`)
       setDetalles(resDetalles.data)
 
@@ -60,6 +62,7 @@ function CajaOrden() {
     const nuevoPrecio = parseFloat(nuevoPrecioStr)
 
     try {
+        // CORREGIDO: Template string correcto
         await axios.put(`https://api-taller-luis.onrender.com/ordenes/detalles/${detalleId}`, { nuevo_precio: nuevoPrecio })
         alert("✅ Precio actualizado")
         cargarDatos()
@@ -77,11 +80,11 @@ function CajaOrden() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '900px', margin: '0 auto' }}>
       
-      {/* 1. ESTADO DE CARGA (Visualmente mostramos cargando, pero el componente sigue existiendo) */}
+      {/* 1. ESTADO DE CARGA */}
       {cargando ? (
         <p>Cargando datos de la caja...</p>
       ) : (
-        /* 2. CONTENIDO PRINCIPAL (Solo se ve si ya cargó) */
+        /* 2. CONTENIDO PRINCIPAL */
         orden && cliente && vehiculo ? (
             <>
                 <button onClick={() => navigate('/recepcion')} style={{ marginBottom: '15px', padding: '10px' }}>← Volver a Recepción</button>
@@ -107,20 +110,46 @@ function CajaOrden() {
                         <tr>
                             <th style={{ padding: '15px', textAlign: 'left' }}>Descripción</th>
                             <th style={{ padding: '15px', textAlign: 'right' }}>Precio</th>
-                            <th style={{ padding: '15px', textAlign: 'center' }}>Editar</th>
+                            <th style={{ padding: '15px', textAlign: 'center' }}>Editar Precio</th>
                         </tr>
                     </thead>
                     <tbody>
                         {detalles.map(item => (
                             <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: '15px' }}>{item.falla_detectada} {item.es_refaccion_cliente && "(Cliente)"}</td>
-                                <td style={{ padding: '15px', textAlign: 'right' }}>${item.precio.toFixed(2)}</td>
+                                <td style={{ padding: '15px' }}>
+                                    <div style={{fontWeight:'bold'}}>{item.falla_detectada}</div>
+                                    <div style={{fontSize:'12px', color:'#666'}}>{item.sistema_origen}</div>
+                                    
+                                    {/* ETIQUETA PIEZA CLIENTE */}
+                                    {item.es_refaccion_cliente && (
+                                        <span style={{ 
+                                            display:'inline-block', marginTop:'5px', 
+                                            backgroundColor:'#ffccbc', color:'#d84315', 
+                                            padding:'2px 8px', borderRadius:'4px', 
+                                            fontSize:'11px', fontWeight:'bold' 
+                                        }}>
+                                            ⚠️ TRAÍDO POR CLIENTE
+                                        </span>
+                                    )}
+                                </td>
+                                
+                                <td style={{ padding: '15px', textAlign: 'right', fontWeight:'bold' }}>
+                                    {item.es_refaccion_cliente ? (
+                                        <span style={{color:'#d84315'}}>$0.00</span>
+                                    ) : (
+                                        <span>${item.precio.toFixed(2)}</span>
+                                    )}
+                                </td>
+
                                 <td style={{ padding: '15px', textAlign: 'center' }}>
-                                    {!item.es_refaccion_cliente && (
+                                    {/* SOLO PERMITIMOS EDITAR SI NO ES PIEZA DE CLIENTE */}
+                                    {!item.es_refaccion_cliente ? (
                                         <div style={{ display:'flex', gap:'5px', justifyContent:'center' }}>
-                                            <input type="number" style={{ width:'70px' }} value={preciosEditados[item.id] || ""} onChange={(e) => setPreciosEditados({...preciosEditados, [item.id]: e.target.value})} />
-                                            <button onClick={() => actualizarPrecio(item.id)}>💾</button>
+                                            <input type="number" style={{ width:'70px', padding:'5px' }} value={preciosEditados[item.id] || ""} placeholder={item.precio} onChange={(e) => setPreciosEditados({...preciosEditados, [item.id]: e.target.value})} />
+                                            <button onClick={() => actualizarPrecio(item.id)} style={{cursor:'pointer', border:'none', background:'transparent', fontSize:'18px'}}>💾</button>
                                         </div>
+                                    ) : (
+                                        <small style={{color:'#999', fontStyle:'italic'}}>No editable</small>
                                     )}
                                 </td>
                             </tr>
@@ -136,11 +165,9 @@ function CajaOrden() {
         ) : <p>Datos incompletos o error al cargar.</p>
       )}
 
-      {/* 3. ZONA DE IMPRESIÓN (SIEMPRE RENDERIZADA AL FINAL) */}
-      {/* Usamos height:0 para ocultarlo visualmente pero mantenerlo en el DOM */}
+      {/* 3. ZONA DE IMPRESIÓN */}
       <div style={{ overflow: 'hidden', height: 0, width: 0 }}>
         <div ref={componentRef}>
-            {/* Solo pasamos datos si existen, si no, pasamos null, pero el div ref siempre existe */}
             {orden && cliente && vehiculo && (
                 <TicketImprimible 
                     orden={orden} 

@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
+from typing import List
 import models, schemas, auth
-import traceback # <--- NECESARIO PARA EL DETECTOR DE ERRORES
-from logger import guardar_error_log # <--- IMPORTAMOS TU DETECTOR
+import traceback 
+from logger import guardar_error_log 
 
 app = FastAPI()
 
@@ -40,7 +41,7 @@ def crear_cliente(cliente: schemas.ClienteCreate, db: Session = Depends(get_db))
     db.refresh(nuevo_cliente)
     return nuevo_cliente
 
-@app.get("/clientes/", response_model=list[schemas.ClienteResponse])
+@app.get("/clientes/", response_model=List[schemas.ClienteResponse])
 def leer_clientes(db: Session = Depends(get_db)):
     return db.query(models.Cliente).all()
 
@@ -64,11 +65,11 @@ def crear_vehiculo(vehiculo: schemas.VehiculoCreate, cliente_id: int, db: Sessio
     db.refresh(nuevo_vehiculo)
     return nuevo_vehiculo
 
-@app.get("/vehiculos/", response_model=list[schemas.VehiculoResponse])
+@app.get("/vehiculos/", response_model=List[schemas.VehiculoResponse])
 def leer_vehiculos(db: Session = Depends(get_db)):
     return db.query(models.Vehiculo).all()
 
-# --- 3. ÓRDENES (CON EL FLUJO CORREGIDO) ---
+# --- 3. ÓRDENES ---
 @app.post("/ordenes/", response_model=schemas.OrdenResponse)
 def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     cliente = db.query(models.Cliente).filter(models.Cliente.id == orden.cliente_id).first()
@@ -77,7 +78,6 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     if not cliente or not vehiculo:
         raise HTTPException(status_code=404, detail="Cliente o Vehículo no encontrados")
     
-    # Creamos la orden (Estado inicial siempre es 'recibido')
     nueva_orden = models.Orden(
         cliente_id=orden.cliente_id,
         vehiculo_id=orden.vehiculo_id,
@@ -95,11 +95,10 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     db.commit()
     return nueva_orden
 
-@app.get("/ordenes/", response_model=list[schemas.OrdenResponse])
+@app.get("/ordenes/", response_model=List[schemas.OrdenResponse])
 def leer_ordenes(db: Session = Depends(get_db)):
     return db.query(models.Orden).all()
 
-# --- AQUI ESTA LA LOGICA DE ESTADOS QUE PEDISTE ---
 @app.put("/ordenes/{orden_id}/estado")
 def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depends(get_db)):
     orden = db.query(models.Orden).filter(models.Orden.id == orden_id).first()
@@ -110,27 +109,15 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
     if nuevo_estado not in estados_validos:
         raise HTTPException(status_code=400, detail="Estado no válido")
 
-    # --- VALIDACIONES DE FLUJO ---
-    
-    # REGLA 1: Para pasar a "reparacion" (En Proceso), DEBE haber un mecánico
-    if nuevo_estado == "reparacion":
-        if not orden.mecanico_asignado:
-            raise HTTPException(
-                status_code=400, 
-                detail="⛔ NO SE PUEDE INICIAR: Debes asignar un mecánico antes de pasar a reparación."
-            )
-
-    # REGLA 2: Para pasar a "entregado", verificaríamos pagos (aquí dejo el espacio)
-    if nuevo_estado == "entregado":
-        # Aquí podrías validar: if orden.saldo > 0: error
-        pass
+    if nuevo_estado == "reparacion" and not orden.mecanico_asignado:
+        raise HTTPException(status_code=400, detail="Debes asignar un mecánico antes de pasar a reparación.")
 
     orden.estado = nuevo_estado
     db.commit()
     db.refresh(orden)
-    return {"mensaje": "Estado actualizado correctamente", "nuevo_estado": orden.estado, "folio": orden.folio_visual}
+    return {"mensaje": "Estado actualizado", "nuevo_estado": orden.estado}
 
-# --- 4. CONFIGURACIÓN (AQUI PUSE EL DETECTOR DE ERRORES) ---
+# --- 4. CONFIGURACIÓN (CATÁLOGOS) ---
 @app.get("/config/fallas-comunes")
 def obtener_catalogo_fallas(db: Session = Depends(get_db)):
     return db.query(models.CatFalla).filter(models.CatFalla.activo == True).all()
@@ -138,7 +125,6 @@ def obtener_catalogo_fallas(db: Session = Depends(get_db)):
 @app.post("/config/fallas-comunes")
 def crear_falla(falla: schemas.FallaCreate, db: Session = Depends(get_db)):
     try:
-        # Intenta guardar
         nueva_falla = models.CatFalla(
             nombre_falla=falla.nombre_falla,
             precio_sugerido=falla.precio_sugerido,
@@ -148,15 +134,11 @@ def crear_falla(falla: schemas.FallaCreate, db: Session = Depends(get_db)):
         db.add(nueva_falla)
         db.commit()
         return {"mensaje": "Falla agregada"}
-
     except Exception as e:
-        # SI FALLA: CANCELA Y GRABA EL LOG
         db.rollback()
-        error_completo = traceback.format_exc() # Captura todo el texto rojo
-        guardar_error_log("Crear Falla Común", error_completo) # Lo manda a la carpeta logs
-        
-        # Le dice al usuario que revise los logs
-        raise HTTPException(status_code=500, detail="Error al guardar. Revisa la carpeta 'logs' en el servidor.")
+        error_completo = traceback.format_exc()
+        guardar_error_log("Crear Falla Común", error_completo)
+        raise HTTPException(status_code=500, detail="Error al guardar. Revisa logs.")
 
 @app.put("/config/fallas-comunes/{id}")
 def actualizar_falla(id: int, falla: schemas.FallaCreate, db: Session = Depends(get_db)):
@@ -184,7 +166,6 @@ def guardar_diagnostico(orden_id: int, diagnostico: schemas.DetalleDiagnosticoCr
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Cambiamos estado a diagnostico automáticamente al guardar un diagnóstico
     if orden.estado == "recibido":
         orden.estado = "diagnostico"
 
@@ -198,7 +179,7 @@ def guardar_diagnostico(orden_id: int, diagnostico: schemas.DetalleDiagnosticoCr
                 falla_detectada=falla_info.nombre_falla,
                 precio=falla_info.precio_sugerido,
                 tipo="falla",
-                estado="pendiente"
+                estado="pendiente" 
             )
             db.add(nuevo_detalle)
             contador += 1
@@ -208,13 +189,14 @@ def guardar_diagnostico(orden_id: int, diagnostico: schemas.DetalleDiagnosticoCr
             orden_id=orden_id,
             sistema_origen="Nota General",
             falla_detectada=diagnostico.nota_libre,
+            precio=0.0,
             tipo="nota",
             estado="informativo"
         )
         db.add(nota_detalle)
     
     db.commit()
-    return {"mensaje": "Diagnóstico guardado exitosamente", "fallas_registradas": contador}
+    return {"mensaje": "Diagnóstico guardado", "items_agregados": contador}
 
 @app.post("/ordenes/{orden_id}/refacciones")
 def agregar_refaccion(orden_id: int, refaccion: schemas.RefaccionCreate, db: Session = Depends(get_db)):
@@ -222,6 +204,7 @@ def agregar_refaccion(orden_id: int, refaccion: schemas.RefaccionCreate, db: Ses
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
+    # Lógica: Si la trae el cliente, precio es 0.0
     precio_final = refaccion.precio_unitario
     if refaccion.traido_por_cliente:
         precio_final = 0.0
@@ -239,31 +222,46 @@ def agregar_refaccion(orden_id: int, refaccion: schemas.RefaccionCreate, db: Ses
     db.commit()
     return {"mensaje": "Refacción agregada"}
 
-@app.get("/ordenes/{orden_id}/detalles")
+# IMPORTANTE: Aquí agregué response_model para que se vean los estados en el Front
+@app.get("/ordenes/{orden_id}/detalles", response_model=List[schemas.OrdenDetalleResponse])
 def ver_detalles_orden(orden_id: int, db: Session = Depends(get_db)):
-    detalles = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.orden_id == orden_id).all()
+    # Ordenamos: primero fallas, luego refacciones
+    detalles = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.orden_id == orden_id).order_by(models.OrdenDetalle.id.asc()).all()
     return detalles
 
+# --- NUEVO: CAMBIAR PRECIO ---
 @app.put("/ordenes/detalles/{detalle_id}")
 def actualizar_precio_detalle(detalle_id: int, datos: schemas.DetallePrecioUpdate, db: Session = Depends(get_db)):
     detalle = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.id == detalle_id).first()
     if not detalle:
-        raise HTTPException(status_code=404, detail="Detalle no encontrada")
-    
+        raise HTTPException(status_code=404, detail="Detalle no encontrado")
     detalle.precio = datos.nuevo_precio
     db.commit()
-    return {"mensaje": "Precio actualizado correctamente"}
+    return {"mensaje": "Precio actualizado"}
 
-# --- 6. ZONA DE SEGURIDAD (LOGIN Y USUARIOS) ---
+# --- NUEVO: CAMBIAR ESTADO (MECÁNICO) ---
+@app.put("/ordenes/detalles/{detalle_id}/estado")
+def actualizar_estado_detalle(detalle_id: int, datos: schemas.EstadoDetalleUpdate, db: Session = Depends(get_db)):
+    detalle = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.id == detalle_id).first()
+    if not detalle:
+        raise HTTPException(status_code=404, detail="Detalle no encontrado")
+    
+    detalle.estado = datos.estado
+    db.commit()
+    return {"mensaje": "Estado actualizado", "nuevo_estado": detalle.estado}
+
+
+# --- 6. ZONA DE SEGURIDAD (LOGIN Y GESTIÓN USUARIOS) ---
 
 @app.post("/token", response_model=schemas.Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(models.Usuario.username == form_data.username).first()
     if not usuario or not auth.verify_password(form_data.password, usuario.password_hash):
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-    
+    if not usuario.activo:
+         raise HTTPException(status_code=400, detail="Usuario inactivo")
+
     access_token = auth.create_access_token(data={"sub": usuario.username})
-    
     return {
         "access_token": access_token, 
         "token_type": "bearer",
@@ -274,21 +272,12 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 @app.post("/usuarios/", response_model=schemas.UsuarioResponse)
 def crear_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)):
-    # 1. Verificar username
     db_user = db.query(models.Usuario).filter(models.Usuario.username == usuario.username).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     
-    # 2. Verificar o crear Email
-    email_final = usuario.email
-    if not email_final:
-        email_final = f"{usuario.username}@taller.local"
+    email_final = usuario.email if usuario.email else f"{usuario.username}@taller.local"
     
-    db_email = db.query(models.Usuario).filter(models.Usuario.email == email_final).first()
-    if db_email:
-        raise HTTPException(status_code=400, detail="El email ya existe")
-
-    # 3. Guardar
     hashed_password = auth.get_password_hash(usuario.password)
     permisos_str = ",".join(usuario.permisos)
 
@@ -306,9 +295,36 @@ def crear_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db))
     db.refresh(nuevo_usuario)
     return nuevo_usuario
 
-@app.get("/usuarios/", response_model=list[schemas.UsuarioResponse])
+@app.get("/usuarios/", response_model=List[schemas.UsuarioResponse])
 def leer_usuarios(db: Session = Depends(get_db)):
-    return db.query(models.Usuario).all()
+    # Solo mostramos los activos
+    return db.query(models.Usuario).filter(models.Usuario.activo == True).all()
+
+# --- NUEVO: EDITAR USUARIO ---
+@app.put("/usuarios/{user_id}")
+def editar_usuario(user_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db)):
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    usuario.nombre = datos.nombre
+    usuario.email = datos.email
+    usuario.rol = datos.rol
+    usuario.permisos = ",".join(datos.permisos)
+    
+    db.commit()
+    return {"mensaje": "Usuario actualizado"}
+
+# --- NUEVO: ELIMINAR USUARIO (LOGICO) ---
+@app.delete("/usuarios/{user_id}")
+def eliminar_usuario(user_id: int, db: Session = Depends(get_db)):
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    usuario.activo = False # No lo borramos, solo lo desactivamos
+    db.commit()
+    return {"mensaje": "Usuario eliminado correctamente"}
 
 @app.put("/usuarios/{user_id}/reset-password")
 def reset_password(user_id: int, nueva_pass: str, db: Session = Depends(get_db)):

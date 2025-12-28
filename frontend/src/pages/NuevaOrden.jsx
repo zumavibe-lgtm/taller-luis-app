@@ -8,7 +8,7 @@ function NuevaOrden() {
   // --- ESTADOS (La memoria de la pantalla) ---
   const [clientes, setClientes] = useState([])
   const [vehiculos, setVehiculos] = useState([])
-  const [listaMecanicos, setListaMecanicos] = useState([]) // <--- NUEVO: Lista para guardar mecánicos reales
+  const [listaMecanicos, setListaMecanicos] = useState([]) 
   
   // Opción: ¿Es cliente nuevo?
   const [esNuevoCliente, setEsNuevoCliente] = useState(false)
@@ -37,19 +37,18 @@ function NuevaOrden() {
 
   const cargarCatalogos = async () => {
     try {
-      // 1. Cargar Clientes
+      // 1. Cargar Clientes (URL CORREGIDA)
       const resC = await axios.get('https://api-taller-luis.onrender.com/clientes/')
       setClientes(resC.data)
 
-      // 2. Cargar Vehículos
+      // 2. Cargar Vehículos (URL CORREGIDA)
       const resV = await axios.get('https://api-taller-luis.onrender.com/vehiculos/')
       setVehiculos(resV.data)
 
-      // 3. Cargar Usuarios (Mecánicos) <--- NUEVO CÓDIGO AQUI
+      // 3. Cargar Usuarios (Mecánicos) (URL CORREGIDA)
       const resU = await axios.get('https://api-taller-luis.onrender.com/usuarios/')
       
       // Filtramos: Solo queremos ver Mecánicos o Admins en la lista
-      // (Si aún no usas roles en la BD, mostrará a todos)
       const soloMecanicos = resU.data.filter(usuario => 
         usuario.rol === 'mecanico' || usuario.rol === 'admin' || !usuario.rol
       );
@@ -58,7 +57,7 @@ function NuevaOrden() {
     } catch (error) { console.error("Error cargando datos:", error) }
   }
 
-  // --- LÓGICA DE BÚSQUEDA (Igual que antes) ---
+  // --- LÓGICA DE BÚSQUEDA ---
   const manejarBusquedaCliente = (e) => {
     const texto = e.target.value
     setBusquedaCliente(texto)
@@ -75,7 +74,7 @@ function NuevaOrden() {
     else setFormData({ ...formData, vehiculo_id: '' })
   }
 
-  // --- LÓGICA MAGICA: CREAR TODO (Cliente -> Vehículo -> Orden) ---
+  // --- LÓGICA CREAR TODO (Cliente -> Vehículo -> Orden) ---
   const manejarEnvio = async (e) => {
     e.preventDefault()
     
@@ -85,13 +84,13 @@ function NuevaOrden() {
     try {
         // CASO 1: Es Cliente Nuevo
         if (esNuevoCliente) {
-            // 1. Crear Cliente
+            // 1. Crear Cliente (URL CORREGIDA)
             const resC = await axios.post('https://api-taller-luis.onrender.com/clientes/', {
                 ...nuevoCliente, es_empresa: false
             })
             idFinalCliente = resC.data.id
 
-            // 2. Crear Vehículo (Usando el ID del cliente nuevo)
+            // 2. Crear Vehículo (URL CORREGIDA)
             const resV = await axios.post(`https://api-taller-luis.onrender.com/vehiculos/?cliente_id=${idFinalCliente}`, nuevoVehiculo)
             idFinalVehiculo = resV.data.id
         }
@@ -108,9 +107,10 @@ function NuevaOrden() {
             vehiculo_id: idFinalVehiculo,
             kilometraje: formData.kilometraje || 0,
             nivel_gasolina: formData.nivel_gasolina,
-            mecanico_asignado: formData.mecanico_asignado || null // Mandamos null si no selecciona nadie
+            mecanico_asignado: formData.mecanico_asignado || null 
         }
 
+        // URL CORREGIDA
         await axios.post('https://api-taller-luis.onrender.com/ordenes/', datosOrden)
         alert("✅ ¡Orden y registros creados exitosamente!")
         navigate('/recepcion')
@@ -195,7 +195,7 @@ function NuevaOrden() {
             </div>
         </div>
 
-        {/* --- AQUI ESTA EL CAMBIO VISUAL DE LOS MECANICOS --- */}
+        {/* --- ASIGNAR MECÁNICO --- */}
         <div>
             <label>🔧 Asignar Mecánico (Opcional):</label>
             <select 
@@ -204,7 +204,6 @@ function NuevaOrden() {
                 style={{ width: '100%', padding: '10px', marginTop: '5px' }}
             >
                 <option value="">-- Cualquiera disponible --</option>
-                {/* Ahora mapeamos la lista real que trajimos de internet */}
                 {listaMecanicos.map(mecanico => (
                     <option key={mecanico.id} value={mecanico.id}>
                         {mecanico.nombre}

@@ -24,6 +24,7 @@ function Dashboard() {
 
   const cargarOrdenes = async () => {
     try {
+      // CORREGIDO: URL limpia sin comillas dobles
       const res = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       setOrdenes(res.data)
     } catch (error) {

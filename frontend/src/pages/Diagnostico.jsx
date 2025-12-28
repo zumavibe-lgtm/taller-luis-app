@@ -5,7 +5,7 @@ import axios from 'axios'
 function Diagnostico() {
   const { id } = useParams()
   const navigate = useNavigate()
-
+  
   // Datos Generales
   const [orden, setOrden] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -28,10 +28,12 @@ function Diagnostico() {
 
   const cargarDatos = async () => {
     try {
+      // URL CORREGIDA
       const resOrdenes = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       const ordenEncontrada = resOrdenes.data.find(o => o.id == id)
       setOrden(ordenEncontrada)
 
+      // URL CORREGIDA
       const resFallas = await axios.get('https://api-taller-luis.onrender.com/config/fallas-comunes')
       setFallasComunes(resFallas.data)
 
@@ -41,6 +43,7 @@ function Diagnostico() {
 
   const recargarDetalles = async () => {
     try {
+        // URL CORREGIDA (Mantenemos las comillas invertidas ` ` solo donde se usa ${id})
         const res = await axios.get(`https://api-taller-luis.onrender.com/ordenes/${id}/detalles`)
         setListaDetalles(res.data)
     } catch (error) { console.error("Error cargando detalles") }
@@ -57,6 +60,7 @@ function Diagnostico() {
 
   const iniciarDiagnostico = async () => {
     try {
+        // URL CORREGIDA
         await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=diagnostico`)
         setOrden({...orden, estado: 'diagnostico'})
     } catch (error) { alert("Error cambiando estado") }
@@ -65,6 +69,7 @@ function Diagnostico() {
   const guardarDiagnostico = async () => {
     if (fallasSeleccionadas.length === 0 && notaExtra.trim() === "") return alert("Selecciona fallas o escribe nota.")
     try {
+        // URL CORREGIDA
         await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/diagnostico`, {
             fallas_ids: fallasSeleccionadas,
             nota_libre: notaExtra
@@ -76,12 +81,28 @@ function Diagnostico() {
     } catch (error) { alert("Error al guardar") }
   }
 
+  // --- NUEVA FUNCIÓN: CAMBIAR ESTADO DE LA TAREA (MECÁNICO) ---
+  const cambiarEstadoDetalle = async (detalleId, nuevoEstado) => {
+    try {
+        // URL CORREGIDA
+        await axios.put(`https://api-taller-luis.onrender.com/ordenes/detalles/${detalleId}/estado`, {
+            estado: nuevoEstado
+        })
+        // Recargamos la lista para que se vean los botones nuevos
+        recargarDetalles()
+    } catch (error) {
+        console.error(error)
+        alert("Error al actualizar el estado de la tarea")
+    }
+  }
+
   // --- AGREGAR PIEZA (SOLO SOLICITUD) ---
   const agregarRefaccion = async (e) => {
     e.preventDefault()
     if (!nuevaRefaccion.nombre_pieza) return alert("Escribe el nombre de la pieza")
     
     try {
+        // URL CORREGIDA
         await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/refacciones`, {
             nombre_pieza: nuevaRefaccion.nombre_pieza,
             precio_unitario: 0, // El mecánico NO pone precio, se va en 0
@@ -103,7 +124,7 @@ function Diagnostico() {
 
       <div style={{ backgroundColor: '#e3f2fd', padding: '20px', borderRadius: '10px', marginBottom: '20px', borderLeft: '5px solid #2196f3' }}>
         <h1 style={{ margin: '0 0 5px 0', color: '#1565c0' }}>{orden.folio_visual}</h1>
-        <p style={{margin:0}}><strong>Estado:</strong> {orden.estado.toUpperCase()}</p>
+        <p style={{margin:0}}><strong>Estado Orden:</strong> {orden.estado.toUpperCase()}</p>
       </div>
 
       {orden.estado === 'recibido' && (
@@ -129,7 +150,7 @@ function Diagnostico() {
         💾 GUARDAR REPORTE TÉCNICO
       </button>
 
-      {/* SECCIÓN 2: SOLICITUD DE PIEZAS (SIN PRECIO) */}
+      {/* SECCIÓN 2: SOLICITUD DE PIEZAS */}
       <div style={{ backgroundColor: '#fff3e0', padding: '20px', borderRadius: '10px', border: '1px solid #ffe0b2', marginBottom: '30px' }}>
         <h3 style={{ marginTop: 0, color: '#e65100' }}>2. Solicitar Piezas / Refacciones</h3>
         <p style={{ fontSize: '14px', color: '#666' }}>Ingresa las piezas necesarias. Recepción se encargará de cotizarlas.</p>
@@ -153,14 +174,15 @@ function Diagnostico() {
         </form>
       </div>
 
-      {/* SECCIÓN 3: RESUMEN TÉCNICO (SIN DINERO) */}
+      {/* SECCIÓN 3: RESUMEN TÉCNICO (CON BOTONES DE ESTADO) */}
       <h3>📋 Resumen de Trabajo Realizado:</h3>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
         <thead>
             <tr style={{ backgroundColor: '#eee', textAlign: 'left' }}>
                 <th style={{ padding: '10px' }}>Concepto</th>
                 <th style={{ padding: '10px' }}>Tipo</th>
-                <th style={{ padding: '10px' }}>Estatus</th>
+                <th style={{ padding: '10px' }}>Estatus Actual</th>
+                <th style={{ padding: '10px' }}>Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -171,12 +193,66 @@ function Diagnostico() {
                         {d.es_refaccion_cliente && <span style={{ marginLeft: '5px', fontSize: '10px', backgroundColor: '#ffccbc', padding: '2px 5px', borderRadius: '4px' }}>CLIENTE</span>}
                     </td>
                     <td style={{ padding: '10px' }}>{d.tipo.toUpperCase()}</td>
-                    <td style={{ padding: '10px', color: '#666', fontStyle: 'italic' }}>
-                        Registrado
+                    
+                    {/* COLUMNA ESTATUS CON COLORES */}
+                    <td style={{ padding: '10px' }}>
+                        {d.estado === 'pendiente' && <span style={{backgroundColor: '#e0e0e0', padding: '4px 8px', borderRadius: '4px', fontSize: '12px'}}>Pendiente ⏳</span>}
+                        {d.estado === 'en_proceso' && <span style={{backgroundColor: '#bbdefb', color: '#0d47a1', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight:'bold'}}>En Proceso 🔧</span>}
+                        {d.estado === 'terminado' && <span style={{backgroundColor: '#c8e6c9', color: '#1b5e20', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight:'bold'}}>Terminado ✅</span>}
+                        {d.estado === 'pausado' && <span style={{backgroundColor: '#ffecb3', color: '#ff6f00', padding: '4px 8px', borderRadius: '4px', fontSize: '12px'}}>En Espera ✋</span>}
+                    </td>
+
+                    {/* COLUMNA ACCIONES (BOTONES) */}
+                    <td style={{ padding: '10px' }}>
+                        <div style={{display: 'flex', gap: '5px'}}>
+                            {/* BOTÓN INICIAR */}
+                            {d.estado === 'pendiente' && (
+                                <button 
+                                    onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')}
+                                    style={{border:'1px solid #2196f3', background:'white', color:'#2196f3', borderRadius:'4px', cursor:'pointer', padding:'2px 8px'}}
+                                >
+                                    ▶ Iniciar
+                                </button>
+                            )}
+
+                            {/* BOTONES PROCESO */}
+                            {d.estado === 'en_proceso' && (
+                                <>
+                                    <button 
+                                        onClick={() => cambiarEstadoDetalle(d.id, 'pausado')}
+                                        style={{border:'1px solid #ff9800', background:'white', color:'#ff9800', borderRadius:'4px', cursor:'pointer', padding:'2px 8px'}}
+                                        title="Poner en espera"
+                                    >
+                                        ✋
+                                    </button>
+                                    <button 
+                                        onClick={() => cambiarEstadoDetalle(d.id, 'terminado')}
+                                        style={{border:'none', background:'#4caf50', color:'white', borderRadius:'4px', cursor:'pointer', padding:'4px 8px'}}
+                                    >
+                                        ✅ Terminar
+                                    </button>
+                                </>
+                            )}
+
+                            {/* BOTÓN REANUDAR */}
+                            {d.estado === 'pausado' && (
+                                <button 
+                                    onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')}
+                                    style={{border:'none', background:'#2196f3', color:'white', borderRadius:'4px', cursor:'pointer', padding:'4px 8px'}}
+                                >
+                                    ▶ Reanudar
+                                </button>
+                            )}
+
+                             {/* TEXTO LISTO */}
+                             {d.estado === 'terminado' && (
+                                <small style={{color:'#4caf50', fontWeight:'bold'}}>Completo</small>
+                            )}
+                        </div>
                     </td>
                 </tr>
             ))}
-            {listaDetalles.length === 0 && <tr><td colSpan="3" style={{ padding: '10px', textAlign: 'center', color: '#999' }}>Sin actividad registrada.</td></tr>}
+            {listaDetalles.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center', color: '#999' }}>Sin actividad registrada.</td></tr>}
         </tbody>
       </table>
     </div>
