@@ -69,7 +69,7 @@ function Diagnostico() {
             fallas_ids: fallasSeleccionadas,
             nota_libre: notaExtra
         })
-        alert("✅ Diagnóstico enviado a Recepción")
+        alert("✅ Diagnóstico guardado")
         setFallasSeleccionadas([]) 
         setNotaExtra("")
         recargarDetalles() 
@@ -84,7 +84,7 @@ function Diagnostico() {
         recargarDetalles()
     } catch (error) {
         console.error(error)
-        alert("Error al actualizar el estado de la tarea")
+        alert("Error al actualizar tarea")
     }
   }
 
@@ -100,28 +100,31 @@ function Diagnostico() {
         })
         setNuevaRefaccion({ nombre_pieza: "", traido_por_cliente: false })
         recargarDetalles()
-        alert("🔧 Pieza solicitada a almacén/recepción")
+        alert("🔧 Tarea/Pieza agregada")
     } catch (error) { alert("Error agregando pieza") }
   }
 
-  // --- LÓGICA DEL BOTÓN MAESTRO ---
   const finalizarOrdenCompleta = async () => {
     const confirmacion = confirm("¿Estás seguro que el vehículo está 100% listo para entrega?");
     if (!confirmacion) return;
 
     try {
         await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=terminado`)
-        alert("🏁 ¡Excelente trabajo! Vehículo marcado como TERMINADO.");
+        alert("🏁 ¡Excelente! Vehículo marcado como TERMINADO.");
         navigate('/'); 
-    } catch (error) {
-        alert("Error al finalizar la orden.");
-    }
+    } catch (error) { alert("Error al finalizar."); }
   }
 
-  // CÁLCULOS PARA EL BOTÓN
-  const tareasPendientes = listaDetalles.filter(d => d.estado !== 'terminado').length;
-  // Está listo si hay tareas Y ninguna está pendiente
-  const todoListo = listaDetalles.length > 0 && tareasPendientes === 0;
+  // --- SEPARACIÓN INTELIGENTE DE DATOS ---
+  // 1. Tareas (Tienen botones y estado)
+  const tareas = listaDetalles.filter(d => d.tipo !== 'NOTA' && d.tipo !== 'nota');
+  
+  // 2. Notas (Solo texto informativo)
+  const notas = listaDetalles.filter(d => d.tipo === 'NOTA' || d.tipo === 'nota');
+
+  // 3. Calculadora: Solo nos importan las TAREAS para el 100%
+  const tareasPendientes = tareas.filter(d => d.estado !== 'terminado').length;
+  const todoListo = tareas.length > 0 && tareasPendientes === 0;
 
   if (cargando) return <p style={{padding: '20px'}}>Cargando...</p>
   if (!orden) return <p style={{padding: '20px'}}>Orden no encontrada</p>
@@ -142,7 +145,7 @@ function Diagnostico() {
         </button>
       )}
 
-      {/* SECCIÓN 1: FALLAS */}
+      {/* SECCIÓN 1: REPORTE TÉCNICO */}
       <h3>1. Reporte Técnico (Fallas):</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', marginBottom: '20px' }}>
         {fallasComunes.map(falla => {
@@ -154,48 +157,48 @@ function Diagnostico() {
             )
         })}
       </div>
-      <textarea rows="3" placeholder="Notas técnicas..." value={notaExtra} onChange={(e) => setNotaExtra(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px' }} />
+      <textarea rows="3" placeholder="Notas / Fallas adicionales (Texto)..." value={notaExtra} onChange={(e) => setNotaExtra(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px' }} />
       <button onClick={guardarDiagnostico} style={{ width: '100%', padding: '10px', backgroundColor: '#2e7d32', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '5px', marginBottom: '30px' }}>
-        💾 GUARDAR REPORTE TÉCNICO
+        💾 GUARDAR FALLAS Y NOTAS
       </button>
 
-      {/* SECCIÓN 2: SOLICITUD DE PIEZAS */}
+      {/* SECCIÓN 2: TAREAS MANUALES */}
       <div style={{ backgroundColor: '#fff3e0', padding: '20px', borderRadius: '10px', border: '1px solid #ffe0b2', marginBottom: '30px' }}>
-        <h3 style={{ marginTop: 0, color: '#e65100' }}>2. Solicitar Piezas / Refacciones</h3>
-        <p style={{ fontSize: '14px', color: '#666' }}>Ingresa las piezas necesarias. Recepción se encargará de cotizarlas.</p>
+        <h3 style={{ marginTop: 0, color: '#e65100' }}>2. Agregar Tarea / Refacción</h3>
+        <p style={{ fontSize: '14px', color: '#666' }}>Si detectas una falla nueva que requiere reparación, agrégala aquí para darle seguimiento.</p>
         
         <form onSubmit={agregarRefaccion} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: 2, minWidth: '200px' }}>
-                <label style={{ display: 'block', fontSize: '12px' }}>Pieza Necesaria:</label>
-                <input type="text" placeholder="Ej: Bomba de Agua" value={nuevaRefaccion.nombre_pieza} onChange={e => setNuevaRefaccion({...nuevaRefaccion, nombre_pieza: e.target.value})} style={{ width: '100%', padding: '8px' }} />
+                <label style={{ display: 'block', fontSize: '12px' }}>Descripción Tarea / Pieza:</label>
+                <input type="text" placeholder="Ej: Ajuste de Frenos" value={nuevaRefaccion.nombre_pieza} onChange={e => setNuevaRefaccion({...nuevaRefaccion, nombre_pieza: e.target.value})} style={{ width: '100%', padding: '8px' }} />
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                 <label style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#d84315' }}>
                     <input type="checkbox" checked={nuevaRefaccion.traido_por_cliente} onChange={e => setNuevaRefaccion({...nuevaRefaccion, traido_por_cliente: e.target.checked})} style={{ marginRight: '5px' }} />
-                    Cliente ya la trajo
+                    Traído por Cliente
                 </label>
             </div>
 
             <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#e65100', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + SOLICITAR
+                + AGREGAR TAREA
             </button>
         </form>
       </div>
 
-      {/* SECCIÓN 3: RESUMEN TÉCNICO */}
-      <h3>📋 Resumen de Trabajo Realizado:</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+      {/* SECCIÓN 3: TABLA DE TAREAS (ACCIONABLES) */}
+      <h3>📋 Lista de Tareas (Reparaciones):</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '30px' }}>
         <thead>
             <tr style={{ backgroundColor: '#eee', textAlign: 'left' }}>
                 <th style={{ padding: '10px' }}>Concepto</th>
                 <th style={{ padding: '10px' }}>Tipo</th>
-                <th style={{ padding: '10px' }}>Estatus Actual</th>
+                <th style={{ padding: '10px' }}>Estatus</th>
                 <th style={{ padding: '10px' }}>Acciones</th>
             </tr>
         </thead>
         <tbody>
-            {listaDetalles.map(d => (
+            {tareas.map(d => (
                 <tr key={d.id} style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={{ padding: '10px' }}>
                         {d.falla_detectada}
@@ -231,19 +234,33 @@ function Diagnostico() {
                     </td>
                 </tr>
             ))}
-            {listaDetalles.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center', color: '#999' }}>Sin actividad registrada.</td></tr>}
+            {tareas.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center', color: '#999' }}>No hay tareas activas.</td></tr>}
         </tbody>
       </table>
 
-      {/* --- BOTÓN MAESTRO (SIEMPRE VISIBLE PERO CONDICIONADO) --- */}
-      {listaDetalles.length > 0 && (
-          <div style={{ marginTop: '40px', textAlign: 'center', padding: '20px', backgroundColor: todoListo ? '#e8f5e9' : '#f5f5f5', borderRadius: '10px', border: todoListo ? '2px solid #4caf50' : '1px solid #ddd' }}>
+      {/* SECCIÓN 4: BITÁCORA DE NOTAS (SOLO TEXTO) */}
+      {notas.length > 0 && (
+          <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#fffde7', border: '1px solid #fff9c4', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0, color: '#fbc02d' }}>📝 Notas y Observaciones:</h3>
+              <ul style={{ paddingLeft: '20px', color: '#555' }}>
+                  {notas.map(nota => (
+                      <li key={nota.id} style={{ marginBottom: '5px' }}>
+                          <strong>{nota.falla_detectada}</strong>
+                      </li>
+                  ))}
+              </ul>
+          </div>
+      )}
+
+      {/* --- BOTÓN MAESTRO --- */}
+      {tareas.length > 0 && (
+          <div style={{ marginTop: '20px', textAlign: 'center', padding: '20px', backgroundColor: todoListo ? '#e8f5e9' : '#f5f5f5', borderRadius: '10px', border: todoListo ? '2px solid #4caf50' : '1px solid #ddd' }}>
             <h3 style={{ color: todoListo ? '#2e7d32' : '#666', marginTop: 0 }}>
                 {todoListo ? "🎉 ¡Vehículo Listo para Entrega!" : `⏳ Faltan ${tareasPendientes} tarea(s) por terminar`}
             </h3>
             
             <button 
-                disabled={!todoListo} // SE BLOQUEA SI NO ESTÁ LISTO
+                disabled={!todoListo} 
                 onClick={finalizarOrdenCompleta}
                 style={{
                     backgroundColor: todoListo ? '#1b5e20' : '#bdbdbd',
