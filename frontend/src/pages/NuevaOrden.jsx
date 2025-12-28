@@ -36,9 +36,9 @@ function NuevaOrden() {
 
   const cargarCatalogos = async () => {
     try {
-      const resC = await axios.get('http://127.0.0.1:8000/clientes/')
+      const resC = await axios.get('https://api-taller-luis.onrender.com/clientes/')
       setClientes(resC.data)
-      const resV = await axios.get('http://127.0.0.1:8000/vehiculos/')
+      const resV = await axios.get('https://api-taller-luis.onrender.com/vehiculos/')
       setVehiculos(resV.data)
     } catch (error) { console.error(error) }
   }
@@ -71,13 +71,13 @@ function NuevaOrden() {
         // CASO 1: Es Cliente Nuevo
         if (esNuevoCliente) {
             // 1. Crear Cliente
-            const resC = await axios.post('http://127.0.0.1:8000/clientes/', {
+            const resC = await axios.post('https://api-taller-luis.onrender.com/clientes/', {
                 ...nuevoCliente, es_empresa: false
             })
             idFinalCliente = resC.data.id
 
             // 2. Crear Vehículo (Usando el ID del cliente nuevo)
-            const resV = await axios.post(`http://127.0.0.1:8000/vehiculos/?cliente_id=${idFinalCliente}`, nuevoVehiculo)
+            const resV = await axios.post(`https://api-taller-luis.onrender.com/vehiculos/?cliente_id=${idFinalCliente}`, nuevoVehiculo)
             idFinalVehiculo = resV.data.id
         }
 
@@ -96,7 +96,7 @@ function NuevaOrden() {
             mecanico_asignado: formData.mecanico_asignado || "Sin Asignar"
         }
 
-        await axios.post('http://127.0.0.1:8000/ordenes/', datosOrden)
+        await axios.post('https://api-taller-luis.onrender.com/ordenes/', datosOrden)
         alert("✅ ¡Orden y registros creados exitosamente!")
         navigate('/recepcion')
 

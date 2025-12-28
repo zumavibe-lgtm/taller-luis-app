@@ -40,7 +40,7 @@ function AdminUsuarios() {
 
   const cargarUsuarios = async () => {
     try {
-        const res = await axios.get('http://127.0.0.1:8000/usuarios/')
+        const res = await axios.get('https://api-taller-luis.onrender.com/usuarios/')
         setUsuarios(res.data)
     } catch (error) { console.error(error) }
   }
@@ -75,7 +75,7 @@ function AdminUsuarios() {
     if(!nuevoUsuario.nombre || !nuevoUsuario.username || !nuevoUsuario.password) return alert("Faltan datos")
 
     try {
-        await axios.post('http://127.0.0.1:8000/usuarios/', nuevoUsuario)
+        await axios.post('https://api-taller-luis.onrender.com/usuarios/', nuevoUsuario)
         alert("✅ Usuario creado exitosamente")
         cargarUsuarios()
         // Resetear form

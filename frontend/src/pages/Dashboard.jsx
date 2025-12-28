@@ -24,7 +24,7 @@ function Dashboard() {
 
   const cargarOrdenes = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/ordenes/')
+      const res = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       setOrdenes(res.data)
     } catch (error) {
       console.error("Error cargando órdenes", error)

@@ -28,11 +28,11 @@ function Diagnostico() {
 
   const cargarDatos = async () => {
     try {
-      const resOrdenes = await axios.get('http://127.0.0.1:8000/ordenes/')
+      const resOrdenes = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       const ordenEncontrada = resOrdenes.data.find(o => o.id == id)
       setOrden(ordenEncontrada)
 
-      const resFallas = await axios.get('http://127.0.0.1:8000/config/fallas-comunes')
+      const resFallas = await axios.get('https://api-taller-luis.onrender.com/config/fallas-comunes')
       setFallasComunes(resFallas.data)
 
       recargarDetalles()
@@ -41,7 +41,7 @@ function Diagnostico() {
 
   const recargarDetalles = async () => {
     try {
-        const res = await axios.get(`http://127.0.0.1:8000/ordenes/${id}/detalles`)
+        const res = await axios.get(`https://api-taller-luis.onrender.com/ordenes/${id}/detalles`)
         setListaDetalles(res.data)
     } catch (error) { console.error("Error cargando detalles") }
   }
@@ -57,7 +57,7 @@ function Diagnostico() {
 
   const iniciarDiagnostico = async () => {
     try {
-        await axios.put(`http://127.0.0.1:8000/ordenes/${id}/estado?nuevo_estado=diagnostico`)
+        await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=diagnostico`)
         setOrden({...orden, estado: 'diagnostico'})
     } catch (error) { alert("Error cambiando estado") }
   }
@@ -65,7 +65,7 @@ function Diagnostico() {
   const guardarDiagnostico = async () => {
     if (fallasSeleccionadas.length === 0 && notaExtra.trim() === "") return alert("Selecciona fallas o escribe nota.")
     try {
-        await axios.post(`http://127.0.0.1:8000/ordenes/${id}/diagnostico`, {
+        await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/diagnostico`, {
             fallas_ids: fallasSeleccionadas,
             nota_libre: notaExtra
         })
@@ -82,7 +82,7 @@ function Diagnostico() {
     if (!nuevaRefaccion.nombre_pieza) return alert("Escribe el nombre de la pieza")
     
     try {
-        await axios.post(`http://127.0.0.1:8000/ordenes/${id}/refacciones`, {
+        await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/refacciones`, {
             nombre_pieza: nuevaRefaccion.nombre_pieza,
             precio_unitario: 0, // El mecánico NO pone precio, se va en 0
             traido_por_cliente: nuevaRefaccion.traido_por_cliente

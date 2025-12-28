@@ -31,19 +31,19 @@ function CajaOrden() {
 
   const cargarDatos = async () => {
     try {
-      const resOrdenes = await axios.get('http://127.0.0.1:8000/ordenes/')
+      const resOrdenes = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
       const miOrden = resOrdenes.data.find(o => o.id == id)
       setOrden(miOrden)
 
-      const resDetalles = await axios.get(`http://127.0.0.1:8000/ordenes/${id}/detalles`)
+      const resDetalles = await axios.get(`https://api-taller-luis.onrender.com/ordenes/${id}/detalles`)
       setDetalles(resDetalles.data)
 
       if (miOrden) {
-        const resClientes = await axios.get('http://127.0.0.1:8000/clientes/')
+        const resClientes = await axios.get('https://api-taller-luis.onrender.com/clientes/')
         const miCliente = resClientes.data.find(c => c.id == miOrden.cliente_id)
         setCliente(miCliente)
 
-        const resVehiculos = await axios.get('http://127.0.0.1:8000/vehiculos/')
+        const resVehiculos = await axios.get('https://api-taller-luis.onrender.com/vehiculos/')
         const miVehiculo = resVehiculos.data.find(v => v.id == miOrden.vehiculo_id)
         setVehiculo(miVehiculo)
       }
@@ -60,7 +60,7 @@ function CajaOrden() {
     const nuevoPrecio = parseFloat(nuevoPrecioStr)
 
     try {
-        await axios.put(`http://127.0.0.1:8000/ordenes/detalles/${detalleId}`, { nuevo_precio: nuevoPrecio })
+        await axios.put(`https://api-taller-luis.onrender.com/ordenes/detalles/${detalleId}`, { nuevo_precio: nuevoPrecio })
         alert("✅ Precio actualizado")
         cargarDatos()
         const copia = {...preciosEditados}
