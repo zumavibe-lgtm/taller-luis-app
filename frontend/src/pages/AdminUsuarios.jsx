@@ -5,21 +5,14 @@ import { useNavigate } from 'react-router-dom'
 function AdminUsuarios() {
   const navigate = useNavigate()
   const [usuarios, setUsuarios] = useState([])
-  
-  // Estado para saber si estamos editando (null = creando, ID = editando)
   const [idEdicion, setIdEdicion] = useState(null)
 
-  // --- FORMULARIO (SIRVE PARA NUEVO Y EDITAR) ---
+  // --- FORMULARIO ---
   const [nuevoUsuario, setNuevoUsuario] = useState({
-    nombre: "",
-    username: "",
-    password: "",
-    email: "", 
-    rol: "mecanico",
-    permisos: []
+    nombre: "", username: "", password: "", email: "", rol: "mecanico", permisos: []
   })
 
-  // --- DEFINICIÓN DE PERMISOS POSIBLES ---
+  // --- DEFINICIÓN DE PERMISOS ---
   const listaPermisos = [
     { id: 'ver_taller', label: '🔧 Ver Taller (Mecánico)' },
     { id: 'ver_recepcion', label: '🖥️ Ver Recepción' },
@@ -28,7 +21,6 @@ function AdminUsuarios() {
     { id: 'admin_usuarios', label: '👥 Administrar Usuarios' }
   ]
 
-  // --- PRESETS ---
   const presets = {
     admin: ['ver_taller', 'ver_recepcion', 'ver_caja', 'ver_config', 'admin_usuarios'],
     mecanico: ['ver_taller'],
@@ -47,7 +39,6 @@ function AdminUsuarios() {
     } catch (error) { console.error(error) }
   }
 
-  // --- LÓGICA DE ROLES Y PERMISOS ---
   const cambiarRol = (e) => {
     const rolSeleccionado = e.target.value
     setNuevoUsuario({ ...nuevoUsuario, rol: rolSeleccionado })
@@ -68,16 +59,15 @@ function AdminUsuarios() {
     }
   }
 
-  // --- PREPARAR EDICIÓN ---
   const iniciarEdicion = (usuario) => {
     setIdEdicion(usuario.id)
     setNuevoUsuario({
         nombre: usuario.nombre || "",
         username: usuario.username,
-        password: "", // Dejamos vacía por seguridad
+        password: "", 
         email: usuario.email || "",
         rol: usuario.rol,
-        permisos: usuario.permisos || [] // Si el backend devuelve permisos string, habría que parsear
+        permisos: usuario.permisos || []
     })
   }
 
@@ -87,39 +77,40 @@ function AdminUsuarios() {
     aplicarPreset("mecanico")
   }
 
-  // --- GUARDAR (CREAR O EDITAR) ---
   const guardarUsuario = async (e) => {
     e.preventDefault()
-    
-    // Validaciones básicas
     if(!nuevoUsuario.username) return alert("El usuario es obligatorio")
     if(!idEdicion && !nuevoUsuario.password) return alert("La contraseña es obligatoria para nuevos usuarios")
 
     try {
         if (idEdicion) {
-            // MODO EDICIÓN (PUT)
             const datosParaEnviar = { ...nuevoUsuario }
-            // Si la contraseña está vacía, la quitamos para que no se sobrescriba con vacío
             if (!datosParaEnviar.password) delete datosParaEnviar.password
-
             await axios.put(`https://api-taller-luis.onrender.com/usuarios/${idEdicion}`, datosParaEnviar)
             alert("✅ Usuario actualizado correctamente")
         } else {
-            // MODO CREACIÓN (POST)
             await axios.post('https://api-taller-luis.onrender.com/usuarios/', nuevoUsuario)
             alert("✅ Usuario creado exitosamente")
         }
-        
         cargarUsuarios()
         cancelarEdicion()
-
     } catch (error) {
         alert("Error: " + (error.response?.data?.detail || "Ocurrió un error al guardar"))
     }
   }
 
-  const borrarUsuario = async (id) => {
-    if(!confirm("¿Estás seguro de ELIMINAR a este usuario? Esta acción no se puede deshacer.")) return
+  // --- LÓGICA DE PROTECCIÓN DE ADMIN ---
+  const borrarUsuario = async (id, rolUsuario) => {
+    // 1. Contamos cuántos admins hay en total
+    const totalAdmins = usuarios.filter(u => u.rol === 'admin').length
+
+    // 2. Si el usuario que queremos borrar ES admin Y solo queda 1 (o menos), prohibimos borrar
+    if (rolUsuario === 'admin' && totalAdmins <= 1) {
+        return alert("🛑 ACCIÓN DENEGADA: No puedes eliminar al único Administrador del sistema. Crea otro admin primero.")
+    }
+
+    if(!confirm("¿Estás seguro de ELIMINAR a este usuario?")) return
+
     try {
         await axios.delete(`https://api-taller-luis.onrender.com/usuarios/${id}`)
         cargarUsuarios()
@@ -143,48 +134,32 @@ function AdminUsuarios() {
             border: idEdicion ? '2px solid #2196f3' : '1px solid #eee'
         }}>
             <h3 style={{ marginTop: 0 }}>{idEdicion ? "✏️ Editando Empleado" : "+ Nuevo Empleado"}</h3>
-            
             <form onSubmit={guardarUsuario} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <input type="text" placeholder="Nombre Completo" value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario({...nuevoUsuario, nombre: e.target.value})} style={{ padding: '10px' }} required />
-                
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <input type="text" placeholder="Usuario (Login)" value={nuevoUsuario.username} onChange={e => setNuevoUsuario({...nuevoUsuario, username: e.target.value})} style={{ padding: '10px', flex: 1 }} required />
                     <input type="email" placeholder="Email (Opcional)" value={nuevoUsuario.email} onChange={e => setNuevoUsuario({...nuevoUsuario, email: e.target.value})} style={{ padding: '10px', flex: 1 }} />
                 </div>
-
                 <input type="text" placeholder={idEdicion ? "Nueva Contraseña (Opcional)" : "Contraseña Inicial"} value={nuevoUsuario.password} onChange={e => setNuevoUsuario({...nuevoUsuario, password: e.target.value})} style={{ padding: '10px' }} />
-
                 <label style={{ fontWeight: 'bold', marginTop: '10px' }}>Rol Principal:</label>
                 <select value={nuevoUsuario.rol} onChange={cambiarRol} style={{ padding: '10px' }}>
                     <option value="mecanico">👨‍🔧 Mecánico</option>
                     <option value="caja">💰 Caja / Recepción</option>
                     <option value="admin">🚀 Administrador</option>
                 </select>
-
                 <label style={{ fontWeight: 'bold', marginTop: '10px' }}>Permisos Específicos:</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', backgroundColor: 'white', padding: '10px', borderRadius: '5px' }}>
                     {listaPermisos.map(p => (
                         <label key={p.id} style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={nuevoUsuario.permisos.includes(p.id)}
-                                onChange={() => togglePermiso(p.id)}
-                                style={{ marginRight: '5px' }}
-                            />
+                            <input type="checkbox" checked={nuevoUsuario.permisos.includes(p.id)} onChange={() => togglePermiso(p.id)} style={{ marginRight: '5px' }} />
                             {p.label}
                         </label>
                     ))}
                 </div>
-
                 <button type="submit" style={{ padding: '15px', backgroundColor: idEdicion ? '#ff9800' : '#1a237e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
                     {idEdicion ? "GUARDAR CAMBIOS" : "CONTRATAR / CREAR"}
                 </button>
-                
-                {idEdicion && (
-                    <button type="button" onClick={cancelarEdicion} style={{ padding: '10px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-                        CANCELAR EDICIÓN
-                    </button>
-                )}
+                {idEdicion && <button type="button" onClick={cancelarEdicion} style={{ padding: '10px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>CANCELAR EDICIÓN</button>}
             </form>
         </div>
 
@@ -213,14 +188,14 @@ function AdminUsuarios() {
                             </td>
                             <td style={{ padding: '8px', textAlign:'center' }}>
                                 <button onClick={() => iniciarEdicion(u)} style={{ marginRight: '10px', cursor: 'pointer', border: 'none', background: 'transparent', fontSize: '18px' }}>✏️</button>
-                                <button onClick={() => borrarUsuario(u.id)} style={{ cursor: 'pointer', border: 'none', background: 'transparent', fontSize: '18px' }}>🗑️</button>
+                                {/* Pasamos el rol del usuario para verificar si es admin */}
+                                <button onClick={() => borrarUsuario(u.id, u.rol)} style={{ cursor: 'pointer', border: 'none', background: 'transparent', fontSize: '18px' }}>🗑️</button>
                             </td>
                         </tr>
                     ))}
                 </tbody>
             </table>
         </div>
-
       </div>
     </div>
   )

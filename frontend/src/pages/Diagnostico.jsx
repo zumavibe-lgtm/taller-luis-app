@@ -104,23 +104,24 @@ function Diagnostico() {
     } catch (error) { alert("Error agregando pieza") }
   }
 
-  // --- LÓGICA DEL BOTÓN MAESTRO (FINALIZAR TODO) ---
+  // --- LÓGICA DEL BOTÓN MAESTRO ---
   const finalizarOrdenCompleta = async () => {
     const confirmacion = confirm("¿Estás seguro que el vehículo está 100% listo para entrega?");
     if (!confirmacion) return;
 
     try {
-        // Cambiamos el estado de la orden a 'terminado'
         await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=terminado`)
         alert("🏁 ¡Excelente trabajo! Vehículo marcado como TERMINADO.");
-        navigate('/'); // Nos regresa al Dashboard
+        navigate('/'); 
     } catch (error) {
         alert("Error al finalizar la orden.");
     }
   }
 
-  // Verificamos si TODO está terminado (y si hay al menos una tarea)
-  const todoListo = listaDetalles.length > 0 && listaDetalles.every(d => d.estado === 'terminado');
+  // CÁLCULOS PARA EL BOTÓN
+  const tareasPendientes = listaDetalles.filter(d => d.estado !== 'terminado').length;
+  // Está listo si hay tareas Y ninguna está pendiente
+  const todoListo = listaDetalles.length > 0 && tareasPendientes === 0;
 
   if (cargando) return <p style={{padding: '20px'}}>Cargando...</p>
   if (!orden) return <p style={{padding: '20px'}}>Orden no encontrada</p>
@@ -234,20 +235,25 @@ function Diagnostico() {
         </tbody>
       </table>
 
-      {/* --- BOTÓN MAESTRO: SOLO APARECE SI TODO ESTÁ TERMINADO --- */}
-      {todoListo && (
-        <div style={{ marginTop: '40px', textAlign: 'center', padding: '20px', backgroundColor: '#e8f5e9', borderRadius: '10px', border: '2px solid #4caf50' }}>
-            <h3 style={{ color: '#2e7d32', marginTop: 0 }}>🎉 ¡Todas las tareas completadas!</h3>
-            <p>Si ya no hay nada más que hacerle a este carro, finaliza la orden para avisar a Recepción.</p>
+      {/* --- BOTÓN MAESTRO (SIEMPRE VISIBLE PERO CONDICIONADO) --- */}
+      {listaDetalles.length > 0 && (
+          <div style={{ marginTop: '40px', textAlign: 'center', padding: '20px', backgroundColor: todoListo ? '#e8f5e9' : '#f5f5f5', borderRadius: '10px', border: todoListo ? '2px solid #4caf50' : '1px solid #ddd' }}>
+            <h3 style={{ color: todoListo ? '#2e7d32' : '#666', marginTop: 0 }}>
+                {todoListo ? "🎉 ¡Vehículo Listo para Entrega!" : `⏳ Faltan ${tareasPendientes} tarea(s) por terminar`}
+            </h3>
+            
             <button 
+                disabled={!todoListo} // SE BLOQUEA SI NO ESTÁ LISTO
                 onClick={finalizarOrdenCompleta}
                 style={{
-                    backgroundColor: '#1b5e20', color: 'white', fontSize: '20px', fontWeight: 'bold',
-                    padding: '20px 40px', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                    backgroundColor: todoListo ? '#1b5e20' : '#bdbdbd',
+                    color: 'white', fontSize: '20px', fontWeight: 'bold',
+                    padding: '20px 40px', border: 'none', borderRadius: '8px',
+                    cursor: todoListo ? 'pointer' : 'not-allowed',
+                    boxShadow: todoListo ? '0 4px 10px rgba(0,0,0,0.3)' : 'none'
                 }}
             >
-                🏁 FINALIZAR VEHÍCULO
+                {todoListo ? "🏁 FINALIZAR VEHÍCULO" : "Completa todas las tareas para finalizar"}
             </button>
         </div>
       )}
