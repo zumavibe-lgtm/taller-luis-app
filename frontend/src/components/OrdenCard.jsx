@@ -1,9 +1,10 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 
-// Este componente recibe los datos de UNA orden y los dibuja bonito
-function OrdenCard({ orden, alClickear }) {
+// Este componente ahora es más inteligente y visual
+function OrdenCard({ orden, datosVehiculo, datosCliente, nombreMecanico, alClickear }) {
   
-  // Definimos colores según el estado para que sea visual
+  // Colores del semáforo
   const obtenerColorEstado = (estado) => {
     switch(estado) {
       case 'recibido': return '#757575'; // Gris
@@ -14,59 +15,80 @@ function OrdenCard({ orden, alClickear }) {
     }
   }
 
+  // Texto amigable del estado
+  const etiquetasEstado = {
+      recibido: "📅 Recibido",
+      diagnostico: "🔍 En Diagnóstico",
+      reparacion: "🔧 En Reparación",
+      terminado: "✅ Listo / Terminado"
+  }
+
   return (
     <div style={{
       borderLeft: `6px solid ${obtenerColorEstado(orden.estado)}`,
       backgroundColor: '#fff',
-      boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.1)', // Sombra más bonita
       borderRadius: '8px',
       padding: '15px',
       marginBottom: '15px',
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'center'
+      alignItems: 'center',
+      transition: 'transform 0.2s',
     }}>
-      {/* Columna Izquierda: Datos */}
+      
+      {/* --- COLUMNA IZQUIERDA: DATOS DEL CARRO --- */}
       <div>
-        <h3 style={{ margin: '0 0 5px 0', color: '#333' }}>
-          {orden.folio_visual}
+        {/* TÍTULO PRINCIPAL: EL CARRO */}
+        <h3 style={{ margin: '0 0 5px 0', color: '#1a237e', textTransform: 'uppercase' }}>
+          {datosVehiculo ? `${datosVehiculo.marca} ${datosVehiculo.modelo}` : `Vehículo ID: ${orden.vehiculo_id}`}
         </h3>
-        <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-          Vehículo ID: <strong>{orden.vehiculo_id}</strong>
+
+        {/* SUBTÍTULO: PLACAS Y COLOR */}
+        <p style={{ margin: '0 0 8px 0', color: '#555', fontSize: '14px', fontWeight: 'bold' }}>
+            {datosVehiculo ? `🚗 ${datosVehiculo.placas} | ${datosVehiculo.color}` : "Cargando datos..."}
         </p>
-        {/* --- AGREGA ESTO --- */}
-<p style={{ margin: '5px 0', fontSize: '14px', color: '#000' }}>
-  🔧 Mecánico: <strong>{orden.mecanico_asignado || "Sin Asignar"}</strong>
-</p>
-{/* ------------------- */}
+
+        {/* CLIENTE */}
+        <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#666' }}>
+          👤 Cliente: <strong>{datosCliente ? datosCliente.nombre_completo : "..."}</strong>
+        </p>
+
+        {/* MECÁNICO ASIGNADO */}
+        <p style={{ margin: '0', fontSize: '13px', color: '#666' }}>
+           🔧 Mecánico: <strong>{nombreMecanico || "Cualquiera"}</strong>
+        </p>
+
+        {/* ETIQUETA DE ESTADO */}
         <span style={{ 
           display: 'inline-block', 
-          marginTop: '8px',
+          marginTop: '10px',
           padding: '4px 8px', 
           borderRadius: '4px', 
           backgroundColor: '#eee', 
-          fontSize: '12px',
+          fontSize: '11px',
           fontWeight: 'bold',
           color: obtenerColorEstado(orden.estado)
         }}>
-          {orden.estado.toUpperCase()}
+          {etiquetasEstado[orden.estado] || orden.estado.toUpperCase()}
         </span>
       </div>
 
-      {/* Columna Derecha: Botón de Acción */}
+      {/* --- COLUMNA DERECHA: BOTÓN --- */}
       <button 
         onClick={() => alClickear(orden.id)}
         style={{
-          backgroundColor: '#2196f3',
+          backgroundColor: obtenerColorEstado(orden.estado), // El botón combina con el estado
           color: 'white',
           border: 'none',
-          padding: '10px 15px',
+          padding: '10px 20px',
           borderRadius: '6px',
           cursor: 'pointer',
-          fontWeight: 'bold'
+          fontWeight: 'bold',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
         }}
       >
-        VER
+        VER ORDEN
       </button>
     </div>
   )
