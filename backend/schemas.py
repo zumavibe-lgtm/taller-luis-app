@@ -76,16 +76,27 @@ class OrdenResponse(BaseModel):
     vehiculo_id: int
     estado: str
     mecanico_asignado: str
-    # Ponemos valores default para que no truene si están vacíos
+    # Valores default para evitar el error 500 si los campos están vacíos
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
     class Config:
         from_attributes = True
 
-# --- OTROS ---
+# --- EXTRAS ---
 class DetallePrecioUpdate(BaseModel):
     nuevo_precio: float
 
 class EstadoDetalleUpdate(BaseModel):
     estado: str
+
+class OrdenDetalleResponse(BaseModel):
+    id: int
+    orden_id: int
+    falla_detectada: str
+    tipo: str
+    estado: str
+    precio: float
+    es_refaccion_cliente: bool
+    class Config:
+        from_attributes = True
