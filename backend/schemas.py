@@ -61,6 +61,13 @@ class VehiculoResponse(VehiculoCreate):
     class Config:
         from_attributes = True
 
+# --- NUEVO: ESTO ES LO QUE FALTABA Y CAUSA EL ERROR ---
+class FallaCreate(BaseModel):
+    nombre_falla: str
+    precio_sugerido: float
+    sistema_id: int
+# ----------------------------------------------------
+
 # --- ÓRDENES ---
 class OrdenCreate(BaseModel):
     cliente_id: int
@@ -76,14 +83,22 @@ class OrdenResponse(BaseModel):
     vehiculo_id: int
     estado: str
     mecanico_asignado: str
-    # Valores default para evitar el error 500 si los campos están vacíos
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
     class Config:
         from_attributes = True
 
-# --- EXTRAS ---
+# --- DETALLES ---
+class DetalleDiagnosticoCreate(BaseModel):
+    fallas_ids: List[int]
+    nota_libre: Optional[str] = None
+
+class RefaccionCreate(BaseModel):
+    nombre_pieza: str
+    precio_unitario: float
+    traido_por_cliente: bool = False
+
 class DetallePrecioUpdate(BaseModel):
     nuevo_precio: float
 
@@ -93,6 +108,7 @@ class EstadoDetalleUpdate(BaseModel):
 class OrdenDetalleResponse(BaseModel):
     id: int
     orden_id: int
+    sistema_origen: Optional[str] = None
     falla_detectada: str
     tipo: str
     estado: str
