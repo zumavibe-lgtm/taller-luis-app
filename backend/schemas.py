@@ -2,32 +2,30 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-# --- USUARIOS (LOGIN Y GESTIÓN) ---
-class UsuarioCreate(BaseModel):
-    nombre: str
+# --- USUARIOS ---
+class UsuarioBase(BaseModel):
     username: str
-    password: str
-    rol: str
+    nombre: str
     email: Optional[str] = None
+    rol: str
     permisos: List[str] = []
+
+class UsuarioCreate(UsuarioBase):
+    password: str
 
 class UsuarioUpdate(BaseModel):
     nombre: str
-    email: str
+    email: Optional[str] = None
     rol: str
     permisos: List[str]
 
-class UsuarioResponse(BaseModel):
+class UsuarioResponse(UsuarioBase):
     id: int
-    nombre: str
-    username: str
-    email: Optional[str]
-    rol: str
-    permisos: str 
     activo: bool
     class Config:
         from_attributes = True
 
+# --- TOKEN ---
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -39,9 +37,9 @@ class Token(BaseModel):
 class ClienteCreate(BaseModel):
     nombre_completo: str
     telefono: str
-    email: str
-    es_empresa: bool
-    rfc: str
+    email: Optional[str] = None
+    es_empresa: bool = False
+    rfc: Optional[str] = None
 
 class ClienteResponse(ClienteCreate):
     id: int
@@ -55,7 +53,7 @@ class VehiculoCreate(BaseModel):
     anio: int
     placas: str
     color: str
-    vin: str
+    vin: Optional[str] = None
 
 class VehiculoResponse(VehiculoCreate):
     id: int
@@ -77,48 +75,17 @@ class OrdenResponse(BaseModel):
     cliente_id: int
     vehiculo_id: int
     estado: str
-    mecanico_asignado: Optional[str] = "Sin Asignar"
-    # IMPORTANTE: Ponles 0.0 o None por defecto
-    total_cobrado: float = 0.0 
+    mecanico_asignado: str
+    # Ponemos valores default para que no truene si están vacíos
+    total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
-
     class Config:
         from_attributes = True
 
-# --- DETALLES (SERVICIOS Y REFACCIONES) ---
-# Este es vital para que el frontend vea los estados
-class OrdenDetalleResponse(BaseModel):
-    id: int
-    orden_id: int
-    sistema_origen: str
-    falla_detectada: str
-    precio: float
-    tipo: str       # 'falla', 'refaccion', 'nota'
-    estado: str     # 'pendiente', 'autorizado', 'terminado'
-    es_refaccion_cliente: bool # Para saber si poner ($0)
-    
-    class Config:
-        from_attributes = True
-
-class DetalleDiagnosticoCreate(BaseModel):
-    fallas_ids: List[int]
-    nota_libre: Optional[str] = None
-
-class RefaccionCreate(BaseModel):
-    nombre_pieza: str
-    precio_unitario: float
-    traido_por_cliente: bool = False
-
-# --- ACTUALIZACIONES ---
+# --- OTROS ---
 class DetallePrecioUpdate(BaseModel):
     nuevo_precio: float
 
 class EstadoDetalleUpdate(BaseModel):
     estado: str
-
-# --- CATÁLOGOS ---
-class FallaCreate(BaseModel):
-    nombre_falla: str
-    precio_sugerido: float
-    sistema_id: int = 2
