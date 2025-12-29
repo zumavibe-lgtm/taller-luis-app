@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 # --- USUARIOS (LOGIN Y GESTIÓN) ---
 class UsuarioCreate(BaseModel):
@@ -72,12 +73,16 @@ class OrdenCreate(BaseModel):
 
 class OrdenResponse(BaseModel):
     id: int
-    folio_visual: Optional[str]
-    estado: str
-    saldo_pendiente: float
+    folio_visual: Optional[str] = None
     cliente_id: int
     vehiculo_id: int
-    mecanico_asignado: Optional[str]
+    estado: str
+    mecanico_asignado: Optional[str] = "Sin Asignar"
+    # IMPORTANTE: Ponles 0.0 o None por defecto
+    total_cobrado: float = 0.0 
+    metodo_pago: Optional[str] = None
+    creado_en: datetime
+
     class Config:
         from_attributes = True
 

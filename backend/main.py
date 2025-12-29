@@ -74,6 +74,7 @@ def leer_vehiculos(db: Session = Depends(get_db)):
 # --- 3. ÓRDENES ---
 @app.post("/ordenes/", response_model=schemas.OrdenResponse)
 def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
+    # Buscamos si existen
     cliente = db.query(models.Cliente).filter(models.Cliente.id == orden.cliente_id).first()
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == orden.vehiculo_id).first()
     
@@ -86,12 +87,14 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
         kilometraje=orden.kilometraje,
         nivel_gasolina=orden.nivel_gasolina,
         estado="recibido", 
-        mecanico_asignado=orden.mecanico_asignado
+        mecanico_asignado=orden.mecanico_asignado,
+        # NO agregues total_cobrado aquí, porque apenas está naciendo la orden
     )
     db.add(nueva_orden)
     db.commit()
     db.refresh(nueva_orden)
     
+    # Generar folio
     folio = f"OS-2025-{str(nueva_orden.id).zfill(6)}"
     nueva_orden.folio_visual = folio
     db.commit()
