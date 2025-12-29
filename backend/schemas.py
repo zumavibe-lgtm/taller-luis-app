@@ -1,14 +1,14 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 
-# --- USUARIOS ---
+# --- USUARIOS (Arreglado para evitar el error 422) ---
 class UsuarioBase(BaseModel):
     username: str
     nombre: str
     email: Optional[str] = None
     rol: str
-    permisos: List[str] = []
+    permisos: Any # Cambiamos a Any para que acepte lista o texto y no truene
 
 class UsuarioCreate(UsuarioBase):
     password: str
@@ -17,7 +17,7 @@ class UsuarioUpdate(BaseModel):
     nombre: str
     email: Optional[str] = None
     rol: str
-    permisos: List[str]
+    permisos: Any
 
 class UsuarioResponse(UsuarioBase):
     id: int
@@ -61,14 +61,13 @@ class VehiculoResponse(VehiculoCreate):
     class Config:
         from_attributes = True
 
-# --- NUEVO: ESTO ES LO QUE FALTABA Y CAUSA EL ERROR ---
+# --- FALLAS (Esto es lo que pedía el log de Render) ---
 class FallaCreate(BaseModel):
     nombre_falla: str
     precio_sugerido: float
     sistema_id: int
-# ----------------------------------------------------
 
-# --- ÓRDENES ---
+# --- ÓRDENES (Completo para que aparezcan en la lista) ---
 class OrdenCreate(BaseModel):
     cliente_id: int
     vehiculo_id: int
@@ -82,7 +81,9 @@ class OrdenResponse(BaseModel):
     cliente_id: int
     vehiculo_id: int
     estado: str
+    kilometraje: int
     mecanico_asignado: str
+    # Campos de cobro (obligatorios para que el GET no falle)
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
@@ -108,7 +109,6 @@ class EstadoDetalleUpdate(BaseModel):
 class OrdenDetalleResponse(BaseModel):
     id: int
     orden_id: int
-    sistema_origen: Optional[str] = None
     falla_detectada: str
     tipo: str
     estado: str

@@ -306,15 +306,18 @@ def crear_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db))
     if db_user:
         raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     
-    email_final = usuario.email if usuario.email else f"{usuario.username}@taller.local"
-    
-    hashed_password = auth.get_password_hash(usuario.password)
-    permisos_str = ",".join(usuario.permisos)
+    # --- LOGICA INTELIGENTE PARA PERMISOS ---
+    if isinstance(usuario.permisos, list):
+        permisos_str = ",".join(usuario.permisos)
+    else:
+        permisos_str = str(usuario.permisos)
+    # ----------------------------------------
 
+    hashed_password = auth.get_password_hash(usuario.password)
     nuevo_usuario = models.Usuario(
         nombre=usuario.nombre,
         username=usuario.username,
-        email=email_final,
+        email=usuario.email if usuario.email else f"{usuario.username}@taller.com",
         password_hash=hashed_password,
         rol=usuario.rol,
         permisos=permisos_str,
