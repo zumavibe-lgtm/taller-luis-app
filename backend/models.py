@@ -8,11 +8,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
     username = Column(String, unique=True, index=True)
-    
-    # --- AGREGAMOS ESTA LÍNEA QUE FALTABA ---
-    email = Column(String, unique=True, index=True) 
-    # ----------------------------------------
-    
+    email = Column(String, unique=True, index=True)
     password_hash = Column(String)
     rol = Column(String)
     permisos = Column(String)
@@ -63,12 +59,21 @@ class Orden(Base):
     sucursal_id = Column(Integer, default=1)
     cliente_id = Column(Integer, ForeignKey("clientes.id"))
     vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"))
+    
+    # Estado de la orden (recibido, diagnostico, entregado, etc.)
     estado = Column(String, default='recibido')
+    
     kilometraje = Column(Integer)
     nivel_gasolina = Column(Integer)
-    saldo_pendiente = Column(Float, default=0.0)
     mecanico_asignado = Column(String, default="Sin Asignar")
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    # --- NUEVOS CAMPOS PARA EL COBRO (AGREGADOS) ---
+    saldo_pendiente = Column(Float, default=0.0) # Cuanto falta por pagar
+    total_cobrado = Column(Float, default=0.0)   # Cuanto se cobró al final
+    metodo_pago = Column(String, nullable=True)  # 'efectivo', 'tarjeta'
+    fecha_cierre = Column(DateTime, nullable=True) # Fecha exacta del cobro
+    # -----------------------------------------------
 
 class OrdenDetalle(Base):
     __tablename__ = "orden_detalles"
@@ -80,9 +85,5 @@ class OrdenDetalle(Base):
     estado = Column(String, default='pendiente')
     precio = Column(Float, default=0.0)
     aprobado_cliente = Column(Boolean, default=False)
-    
-    # --- CAMPO NUEVO PARA REFACCIONES ---
     es_refaccion_cliente = Column(Boolean, default=False) 
-    # ------------------------------------
-
     creado_en = Column(DateTime(timezone=True), server_default=func.now())

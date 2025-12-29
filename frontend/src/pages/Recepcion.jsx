@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+// 1. IMPORTAMOS TU NUEVA VENTANA (Asegúrate que la ruta sea correcta)
+import ModalCobro from '../components/ModalCobro' 
 
 function Recepcion() {
   const [ordenes, setOrdenes] = useState([])
@@ -8,6 +10,10 @@ function Recepcion() {
   
   // Pestaña activa: 'taller' (En proceso) o 'entrega' (Terminados)
   const [pestañaActiva, setPestañaActiva] = useState('taller')
+  
+  // 2. ESTADO NUEVO: Para saber qué orden se está cobrando ahorita
+  // Si es null, la ventana está cerrada. Si tiene datos, se abre.
+  const [ordenParaCobrar, setOrdenParaCobrar] = useState(null)
   
   const navigate = useNavigate()
 
@@ -27,14 +33,16 @@ function Recepcion() {
   }
 
   // --- FILTROS DE LISTAS ---
-  // 1. En Taller: Todo lo que NO esté terminado ni entregado/pagado
   const ordenesEnTaller = ordenes.filter(o => o.estado !== 'terminado' && o.estado !== 'entregado' && o.estado !== 'pagado')
-  
-  // 2. Por Entregar: Solo lo que el mecánico ya marcó como TERMINADO
   const ordenesParaEntrega = ordenes.filter(o => o.estado === 'terminado')
 
-  // Elegimos qué lista mostrar según la pestaña
   const listaVisual = pestañaActiva === 'taller' ? ordenesEnTaller : ordenesParaEntrega
+
+  // --- FUNCIÓN QUE SE EJECUTA CUANDO SE COBRA CON ÉXITO ---
+  const alTerminarCobro = () => {
+      setOrdenParaCobrar(null); // Cierra la ventana
+      cargarOrdenes(); // Recarga la lista para que la orden desaparezca de "Pendientes"
+  }
 
   // --- COMPONENTE DE TARJETA SIMPLE PARA LA LISTA ---
   const FilaOrden = ({ orden }) => (
@@ -43,8 +51,6 @@ function Recepcion() {
           {orden.folio_visual}
       </td>
       <td style={{ padding: '10px' }}>
-          {/* Aquí idealmente cruzaríamos datos con cliente/vehículo como en el Dashboard, 
-              pero por ahora mostramos los IDs o el dato crudo si el backend lo mandara poblado */}
           <div style={{fontWeight:'bold'}}>Vehículo ID: {orden.vehiculo_id}</div>
           <div style={{fontSize:'12px', color:'#666'}}>Cliente ID: {orden.cliente_id}</div>
       </td>
@@ -59,9 +65,9 @@ function Recepcion() {
       </td>
       <td style={{ padding: '10px', textAlign: 'right' }}>
         {orden.estado === 'terminado' ? (
-            // BOTÓN PARA COBRAR (SOLO EN PESTAÑA DE ENTREGA)
+            // 3. CAMBIO EN EL BOTÓN: Ahora abre la modal en lugar de navegar
             <button 
-                onClick={() => navigate(`/caja/${orden.id}`)}
+                onClick={() => setOrdenParaCobrar(orden)}
                 style={{
                     padding: '8px 15px', backgroundColor: '#2e7d32', color: 'white',
                     border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold',
@@ -71,9 +77,8 @@ function Recepcion() {
                 💰 COBRAR Y ENTREGAR
             </button>
         ) : (
-            // BOTÓN PARA GESTIONAR (EN TALLER)
             <button 
-                onClick={() => navigate(`/caja/${orden.id}`)} // Por ahora lleva a la misma, luego separaremos si quieres
+                onClick={() => navigate(`/caja/${orden.id}`)} 
                 style={{
                     padding: '8px 15px', backgroundColor: '#1976d2', color: 'white',
                     border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px'
@@ -89,7 +94,6 @@ function Recepcion() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '1000px', margin: '0 auto' }}>
       
-      {/* HEADER Y BOTÓN NUEVA ORDEN */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0, color: '#1a237e' }}>🖥️ Panel de Recepción</h1>
         <button 
@@ -163,6 +167,16 @@ function Recepcion() {
             </table>
           </div>
       )}
+
+      {/* 4. AQUI RENDERIZAMOS LA MODAL SI HAY UNA ORDEN SELECCIONADA */}
+      {ordenParaCobrar && (
+          <ModalCobro 
+              orden={ordenParaCobrar} 
+              onClose={() => setOrdenParaCobrar(null)} 
+              onCobroExitoso={alTerminarCobro}
+          />
+      )}
+
     </div>
   )
 }

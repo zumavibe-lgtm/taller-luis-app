@@ -4,6 +4,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from typing import List
+from pydantic import BaseModel # Necesario para definir datos aqui mismo
+from datetime import datetime  # Necesario para guardar fecha de cobro
 import models, schemas, auth
 import traceback 
 from logger import guardar_error_log 
@@ -105,6 +107,7 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
+    # Lista de estados validos + ENTREGADO
     estados_validos = ["recibido", "diagnostico", "reparacion", "terminado", "entregado"]
     if nuevo_estado not in estados_validos:
         raise HTTPException(status_code=400, detail="Estado no válido")
@@ -116,6 +119,36 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
     db.commit()
     db.refresh(orden)
     return {"mensaje": "Estado actualizado", "nuevo_estado": orden.estado}
+
+# --- NUEVO: FUNCION DE COBRAR ---
+# Definimos el esquema de datos aqui mismo para no enredarte con schemas.py
+class CobroSchema(BaseModel):
+    total_cobrado: float
+    metodo_pago: str # 'efectivo' o 'tarjeta'
+
+@app.put("/ordenes/{orden_id}/cobrar")
+def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db)):
+    # 1. Buscar la orden
+    orden = db.query(models.Orden).filter(models.Orden.id == orden_id).first()
+    
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    # 2. Verificar que no esté cobrada ya
+    if orden.estado == "entregado":
+        raise HTTPException(status_code=400, detail="Esta orden ya fue cobrada y entregada")
+
+    # 3. Guardar datos del cobro
+    orden.total_cobrado = cobro.total_cobrado
+    orden.metodo_pago = cobro.metodo_pago
+    orden.fecha_cierre = datetime.now() # Hora exacta
+    orden.estado = "entregado"          # Cambiamos estado a finalizado
+
+    db.commit()
+    db.refresh(orden)
+    
+    return {"mensaje": "Cobro registrado exitosamente", "orden_id": orden.id}
+# --------------------------------
 
 # --- 4. CONFIGURACIÓN (CATÁLOGOS) ---
 @app.get("/config/fallas-comunes")
@@ -204,7 +237,6 @@ def agregar_refaccion(orden_id: int, refaccion: schemas.RefaccionCreate, db: Ses
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Lógica: Si la trae el cliente, precio es 0.0
     precio_final = refaccion.precio_unitario
     if refaccion.traido_por_cliente:
         precio_final = 0.0
@@ -222,14 +254,11 @@ def agregar_refaccion(orden_id: int, refaccion: schemas.RefaccionCreate, db: Ses
     db.commit()
     return {"mensaje": "Refacción agregada"}
 
-# IMPORTANTE: Aquí agregué response_model para que se vean los estados en el Front
 @app.get("/ordenes/{orden_id}/detalles", response_model=List[schemas.OrdenDetalleResponse])
 def ver_detalles_orden(orden_id: int, db: Session = Depends(get_db)):
-    # Ordenamos: primero fallas, luego refacciones
     detalles = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.orden_id == orden_id).order_by(models.OrdenDetalle.id.asc()).all()
     return detalles
 
-# --- NUEVO: CAMBIAR PRECIO ---
 @app.put("/ordenes/detalles/{detalle_id}")
 def actualizar_precio_detalle(detalle_id: int, datos: schemas.DetallePrecioUpdate, db: Session = Depends(get_db)):
     detalle = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.id == detalle_id).first()
@@ -239,7 +268,6 @@ def actualizar_precio_detalle(detalle_id: int, datos: schemas.DetallePrecioUpdat
     db.commit()
     return {"mensaje": "Precio actualizado"}
 
-# --- NUEVO: CAMBIAR ESTADO (MECÁNICO) ---
 @app.put("/ordenes/detalles/{detalle_id}/estado")
 def actualizar_estado_detalle(detalle_id: int, datos: schemas.EstadoDetalleUpdate, db: Session = Depends(get_db)):
     detalle = db.query(models.OrdenDetalle).filter(models.OrdenDetalle.id == detalle_id).first()
@@ -249,7 +277,6 @@ def actualizar_estado_detalle(detalle_id: int, datos: schemas.EstadoDetalleUpdat
     detalle.estado = datos.estado
     db.commit()
     return {"mensaje": "Estado actualizado", "nuevo_estado": detalle.estado}
-
 
 # --- 6. ZONA DE SEGURIDAD (LOGIN Y GESTIÓN USUARIOS) ---
 
@@ -297,10 +324,8 @@ def crear_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db))
 
 @app.get("/usuarios/", response_model=List[schemas.UsuarioResponse])
 def leer_usuarios(db: Session = Depends(get_db)):
-    # Solo mostramos los activos
     return db.query(models.Usuario).filter(models.Usuario.activo == True).all()
 
-# --- NUEVO: EDITAR USUARIO ---
 @app.put("/usuarios/{user_id}")
 def editar_usuario(user_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
@@ -315,14 +340,13 @@ def editar_usuario(user_id: int, datos: schemas.UsuarioUpdate, db: Session = Dep
     db.commit()
     return {"mensaje": "Usuario actualizado"}
 
-# --- NUEVO: ELIMINAR USUARIO (LOGICO) ---
 @app.delete("/usuarios/{user_id}")
 def eliminar_usuario(user_id: int, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    usuario.activo = False # No lo borramos, solo lo desactivamos
+    usuario.activo = False
     db.commit()
     return {"mensaje": "Usuario eliminado correctamente"}
 
