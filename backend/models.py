@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, F
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
+from datetime import datetime
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -57,10 +58,20 @@ class Orden(Base):
     id = Column(Integer, primary_key=True, index=True)
     folio_visual = Column(String, unique=True)
     sucursal_id = Column(Integer, default=1)
+    
+    # Llaves foráneas (los números)
     cliente_id = Column(Integer, ForeignKey("clientes.id"))
     vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"))
     
-    # Estado de la orden (recibido, diagnostico, entregado, etc.)
+    # --- AQUÍ ESTÁ LA MAGIA QUE FALTABA ---
+    # Estas líneas conectan los IDs con las tablas reales
+    cliente = relationship("Cliente")
+    vehiculo = relationship("Vehiculo")
+    # --------------------------------------
+
+    inspeccion = relationship("InspeccionRecepcion", back_populates="orden", uselist=False)
+    
+    # Estado de la orden
     estado = Column(String, default='recibido')
     
     kilometraje = Column(Integer)
@@ -68,12 +79,11 @@ class Orden(Base):
     mecanico_asignado = Column(String, default="Sin Asignar")
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
-    # --- NUEVOS CAMPOS PARA EL COBRO (AGREGADOS) ---
-    saldo_pendiente = Column(Float, default=0.0) # Cuanto falta por pagar
-    total_cobrado = Column(Float, default=0.0)   # Cuanto se cobró al final
-    metodo_pago = Column(String, nullable=True)  # 'efectivo', 'tarjeta'
-    fecha_cierre = Column(DateTime, nullable=True) # Fecha exacta del cobro
-    # -----------------------------------------------
+    # Campos de cobro
+    saldo_pendiente = Column(Float, default=0.0)
+    total_cobrado = Column(Float, default=0.0)
+    metodo_pago = Column(String, nullable=True)
+    fecha_cierre = Column(DateTime, nullable=True)
 
 class OrdenDetalle(Base):
     __tablename__ = "orden_detalles"
@@ -81,9 +91,54 @@ class OrdenDetalle(Base):
     orden_id = Column(Integer, ForeignKey("ordenes.id"))
     sistema_origen = Column(String) 
     falla_detectada = Column(String) 
-    tipo = Column(String) # falla, nota, refaccion
+    tipo = Column(String)
     estado = Column(String, default='pendiente')
     precio = Column(Float, default=0.0)
     aprobado_cliente = Column(Boolean, default=False)
     es_refaccion_cliente = Column(Boolean, default=False) 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+class InspeccionRecepcion(Base):
+    __tablename__ = "inspecciones_recepcion"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    orden_id = Column(Integer, ForeignKey("ordenes.id"))
+    
+    # Datos Generales
+    version = Column(String)
+    transmision = Column(String)
+    combustible = Column(String)
+    puertas = Column(Integer)
+    estado_procedencia = Column(String)
+    
+    # Documentación
+    doc_factura = Column(Boolean, default=False)
+    doc_tarjeta_circulacion = Column(Boolean, default=False)
+    doc_seguro = Column(Boolean, default=False)
+
+    # Inspección Exterior
+    ext_pintura = Column(String)
+    ext_llantas = Column(String)
+    ext_calaveras = Column(String)
+    ext_refaccion = Column(String)
+    
+    # Inspección Interior
+    int_asientos_bien = Column(Boolean, default=True)
+    int_tablero_alertas = Column(String, nullable=True)
+    int_aire_acondicionado = Column(Boolean, default=True)
+    
+    # Mecánica Básica
+    mec_niveles_aceite = Column(String)
+    mec_frenos = Column(String)
+    
+    # Equipamiento
+    acc_num_llaves = Column(Integer, default=1)
+    acc_gato = Column(Boolean, default=False)
+    
+    # Firmas
+    observaciones = Column(String, nullable=True)
+    nombre_receptor = Column(String)
+    fecha_ingreso = Column(DateTime, default=datetime.utcnow)
+
+    # Relación con la orden
+    orden = relationship("Orden", back_populates="inspeccion")

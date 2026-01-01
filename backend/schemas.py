@@ -2,13 +2,13 @@ from pydantic import BaseModel
 from typing import List, Optional, Any
 from datetime import datetime
 
-# --- USUARIOS (Arreglado para evitar el error 422) ---
+# --- USUARIOS ---
 class UsuarioBase(BaseModel):
     username: str
     nombre: str
     email: Optional[str] = None
     rol: str
-    permisos: Any # Cambiamos a Any para que acepte lista o texto y no truene
+    permisos: Any 
 
 class UsuarioCreate(UsuarioBase):
     password: str
@@ -54,6 +54,7 @@ class VehiculoCreate(BaseModel):
     placas: str
     color: str
     vin: Optional[str] = None
+    cliente_id: int
 
 class VehiculoResponse(VehiculoCreate):
     id: int
@@ -61,13 +62,13 @@ class VehiculoResponse(VehiculoCreate):
     class Config:
         from_attributes = True
 
-# --- FALLAS (Esto es lo que pedía el log de Render) ---
+# --- FALLAS ---
 class FallaCreate(BaseModel):
     nombre_falla: str
     precio_sugerido: float
     sistema_id: int
 
-# --- ÓRDENES (Completo para que aparezcan en la lista) ---
+# --- ÓRDENES (AQUÍ ESTÁ LA MAGIA QUE FALTABA) ---
 class OrdenCreate(BaseModel):
     cliente_id: int
     vehiculo_id: int
@@ -83,10 +84,16 @@ class OrdenResponse(BaseModel):
     estado: str
     kilometraje: int
     mecanico_asignado: str
-    # Campos de cobro (obligatorios para que el GET no falle)
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
+
+    # --- ESTAS SON LAS 2 LÍNEAS NUEVAS QUE ARREGLAN TODO ---
+    # Esto permite que viajen los objetos completos, no solo los IDs
+    cliente: Optional[ClienteResponse] = None
+    vehiculo: Optional[VehiculoResponse] = None
+    # -------------------------------------------------------
+
     class Config:
         from_attributes = True
 
@@ -114,5 +121,37 @@ class OrdenDetalleResponse(BaseModel):
     estado: str
     precio: float
     es_refaccion_cliente: bool
+    class Config:
+        from_attributes = True
+
+# --- SCHEMAS PARA LA INSPECCIÓN ---
+
+class InspeccionBase(BaseModel):
+    orden_id: int  
+    version: Optional[str] = None
+    transmision: str
+    combustible: str
+    puertas: int
+    estado_procedencia: str
+    doc_factura: bool = False
+    doc_tarjeta_circulacion: bool = False
+    ext_pintura: str
+    ext_llantas: str
+    ext_calaveras: str
+    ext_refaccion: str
+    int_asientos_bien: bool = True
+    int_aire_acondicionado: bool = True
+    mec_niveles_aceite: str
+    mec_frenos: str
+    acc_num_llaves: int = 1
+    nombre_receptor: str
+
+class InspeccionCreate(InspeccionBase):
+    pass 
+
+class InspeccionResponse(InspeccionBase):
+    id: int
+    fecha_ingreso: datetime
+    
     class Config:
         from_attributes = True

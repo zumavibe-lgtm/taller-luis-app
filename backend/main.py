@@ -2,13 +2,21 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, engine
 from typing import List
-from pydantic import BaseModel # Necesario para definir datos aqui mismo
-from datetime import datetime  # Necesario para guardar fecha de cobro
+from pydantic import BaseModel 
+from datetime import datetime 
 import models, schemas, auth
 import traceback 
 from logger import guardar_error_log 
+
+# --- IMPORTACIONES PARA GOOGLE SHEETS ---
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+# ----------------------------------------
+
+# Revisamos si existen las tablas y si no, las crea.
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -24,9 +32,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------
+# 🤖 FUNCIONES DE GOOGLE SHEETS
+# ---------------------------------------------------------
+
+# 1. GUARDAR ORDEN NUEVA (Datos Generales)
+def guardar_en_sheets(orden_nueva, cliente_nombre, vehiculo_placas):
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        client = gspread.authorize(creds)
+        
+        # ID DE TU HOJA DE CÁLCULO
+        SHEET_ID = "1y6nW9C8diwITs_lqpH6fjNlVuH90E4oiS5NTXfRm6kc" 
+        
+        sheet = client.open_by_key(SHEET_ID).get_worksheet(0)  # Agarra la pestaña #1 por posición  # Pestaña 1
+        
+        fila = [
+            orden_nueva.folio_visual,      # Columna A: Folio
+            str(orden_nueva.creado_en),    # Columna B: Fecha
+            cliente_nombre,                # Columna C: Cliente
+            vehiculo_placas,               # Columna D: Placas
+            orden_nueva.estado,            # Columna E: Estado
+            orden_nueva.mecanico_asignado  # Columna F: Mecánico
+        ]
+        
+        sheet.append_row(fila)
+        print(f"✅ Orden {orden_nueva.folio_visual} guardada en Sheets")
+        
+    except Exception as e:
+        print(f"⚠️ Error guardando Orden en Sheets: {e}")
+
+# 2. GUARDAR CHECKLIST / INSPECCIÓN (Detalles técnicos)
+def guardar_checklist_sheets(datos, folio_visual):
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        client = gspread.authorize(creds)
+        
+        SHEET_ID = "1y6nW9C8diwITs_lqpH6fjNlVuH90E4oiS5NTXfRm6kc"
+        
+        # Intentamos guardar en la misma hoja (o podrías cambiar .sheet1 por .get_worksheet(1) para otra pestaña)
+        sheet = client.open_by_key(SHEET_ID).get_worksheet(0)  # Agarra la pestaña #1 por posición 
+        
+        # Preparamos la fila con etiqueta de "CHECKLIST" para diferenciarla
+        fila = [
+            f"CHECKLIST -> {folio_visual}", # Columna A: Referencia
+            f"Gasolina: {datos.nivel_gasolina}%", # Columna B
+            f"Km: {datos.kilometraje}",      # Columna C
+            f"Luces: {'Sí' if datos.luces else 'No'}", # Columna D
+            f"Golpes: {'Sí' if datos.golpes else 'No'}", # Columna E
+            f"Notas: {datos.notas}"          # Columna F
+        ]
+        
+        sheet.append_row(fila)
+        print(f"📝 Checklist de {folio_visual} guardado en Sheets")
+        
+    except Exception as e:
+        print(f"⚠️ Error guardando Checklist en Sheets: {e}")
+
+# ---------------------------------------------------------
+
 @app.get("/")
 def read_root():
-    return {"mensaje": "API del Taller Mecánico Activa"}
+    return {"mensaje": "API del Taller Mecánico Activa con Google Sheets 🚀"}
 
 # --- 1. CLIENTES ---
 @app.post("/clientes/", response_model=schemas.ClienteResponse)
@@ -49,19 +118,16 @@ def leer_clientes(db: Session = Depends(get_db)):
 
 # --- 2. VEHÍCULOS ---
 @app.post("/vehiculos/", response_model=schemas.VehiculoResponse)
-def crear_vehiculo(vehiculo: schemas.VehiculoCreate, cliente_id: int, db: Session = Depends(get_db)):
-    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
+def crear_vehiculo(vehiculo: schemas.VehiculoCreate, db: Session = Depends(get_db)):
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == vehiculo.cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    nuevo_vehiculo = models.Vehiculo(
-        cliente_id=cliente_id,
-        marca=vehiculo.marca,
-        modelo=vehiculo.modelo,
-        anio=vehiculo.anio,
-        placas=vehiculo.placas,
-        color=vehiculo.color,
-        vin=vehiculo.vin
-    )
+    
+    if db.query(models.Vehiculo).filter(models.Vehiculo.placas == vehiculo.placas).first():
+        raise HTTPException(status_code=400, detail="Ya existe un vehículo con estas placas")
+
+    nuevo_vehiculo = models.Vehiculo(**vehiculo.model_dump())
+    
     db.add(nuevo_vehiculo)
     db.commit()
     db.refresh(nuevo_vehiculo)
@@ -71,7 +137,7 @@ def crear_vehiculo(vehiculo: schemas.VehiculoCreate, cliente_id: int, db: Sessio
 def leer_vehiculos(db: Session = Depends(get_db)):
     return db.query(models.Vehiculo).all()
 
-# --- 3. ÓRDENES ---
+# --- 3. ÓRDENES (MODIFICADO PARA SHEETS) ---
 @app.post("/ordenes/", response_model=schemas.OrdenResponse)
 def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     # Buscamos si existen
@@ -88,16 +154,21 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
         nivel_gasolina=orden.nivel_gasolina,
         estado="recibido", 
         mecanico_asignado=orden.mecanico_asignado,
-        # NO agregues total_cobrado aquí, porque apenas está naciendo la orden
     )
     db.add(nueva_orden)
     db.commit()
     db.refresh(nueva_orden)
     
-    # Generar folio
+    # Generar folio visual
     folio = f"OS-2025-{str(nueva_orden.id).zfill(6)}"
     nueva_orden.folio_visual = folio
     db.commit()
+
+    # --- ENVIAR A GOOGLE SHEETS (ORDEN NUEVA) ---
+    if cliente and vehiculo:
+        guardar_en_sheets(nueva_orden, cliente.nombre_completo, vehiculo.placas)
+    # ------------------------------
+
     return nueva_orden
 
 @app.get("/ordenes/", response_model=List[schemas.OrdenResponse])
@@ -110,7 +181,6 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Lista de estados validos + ENTREGADO
     estados_validos = ["recibido", "diagnostico", "reparacion", "terminado", "entregado"]
     if nuevo_estado not in estados_validos:
         raise HTTPException(status_code=400, detail="Estado no válido")
@@ -123,35 +193,30 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
     db.refresh(orden)
     return {"mensaje": "Estado actualizado", "nuevo_estado": orden.estado}
 
-# --- NUEVO: FUNCION DE COBRAR ---
-# Definimos el esquema de datos aqui mismo para no enredarte con schemas.py
+# --- COBRO ---
 class CobroSchema(BaseModel):
     total_cobrado: float
-    metodo_pago: str # 'efectivo' o 'tarjeta'
+    metodo_pago: str 
 
 @app.put("/ordenes/{orden_id}/cobrar")
 def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db)):
-    # 1. Buscar la orden
     orden = db.query(models.Orden).filter(models.Orden.id == orden_id).first()
     
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # 2. Verificar que no esté cobrada ya
     if orden.estado == "entregado":
         raise HTTPException(status_code=400, detail="Esta orden ya fue cobrada y entregada")
 
-    # 3. Guardar datos del cobro
     orden.total_cobrado = cobro.total_cobrado
     orden.metodo_pago = cobro.metodo_pago
-    orden.fecha_cierre = datetime.now() # Hora exacta
-    orden.estado = "entregado"          # Cambiamos estado a finalizado
+    orden.fecha_cierre = datetime.now() 
+    orden.estado = "entregado"          
 
     db.commit()
     db.refresh(orden)
     
     return {"mensaje": "Cobro registrado exitosamente", "orden_id": orden.id}
-# --------------------------------
 
 # --- 4. CONFIGURACIÓN (CATÁLOGOS) ---
 @app.get("/config/fallas-comunes")
@@ -281,7 +346,7 @@ def actualizar_estado_detalle(detalle_id: int, datos: schemas.EstadoDetalleUpdat
     db.commit()
     return {"mensaje": "Estado actualizado", "nuevo_estado": detalle.estado}
 
-# --- 6. ZONA DE SEGURIDAD (LOGIN Y GESTIÓN USUARIOS) ---
+# --- 6. ZONA DE SEGURIDAD ---
 
 @app.post("/token", response_model=schemas.Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -306,12 +371,10 @@ def crear_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db))
     if db_user:
         raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
     
-    # --- LOGICA INTELIGENTE PARA PERMISOS ---
     if isinstance(usuario.permisos, list):
         permisos_str = ",".join(usuario.permisos)
     else:
         permisos_str = str(usuario.permisos)
-    # ----------------------------------------
 
     hashed_password = auth.get_password_hash(usuario.password)
     nuevo_usuario = models.Usuario(
@@ -365,3 +428,31 @@ def reset_password(user_id: int, nueva_pass: str, db: Session = Depends(get_db))
     usuario.password_hash = auth.get_password_hash(nueva_pass)
     db.commit()
     return {"mensaje": "Contraseña actualizada correctamente"}
+
+# --- RUTAS INSPECCIÓN ---
+@app.post("/inspeccion/", response_model=schemas.InspeccionResponse)
+def crear_inspeccion(inspeccion: schemas.InspeccionCreate, db: Session = Depends(get_db)):
+    orden = db.query(models.Orden).filter(models.Orden.id == inspeccion.orden_id).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="La orden para esta inspección no existe")
+    
+    nueva_inspeccion = models.InspeccionRecepcion(**inspeccion.model_dump())
+    
+    db.add(nueva_inspeccion)
+    db.commit()
+    db.refresh(nueva_inspeccion)
+    
+    # --- ENVIAR CHECKLIST A SHEETS ---
+    # Enviamos los datos a Google Sheets usando el Folio de la orden
+    if orden:
+         guardar_checklist_sheets(nueva_inspeccion, orden.folio_visual)
+    # ---------------------------------
+    
+    return nueva_inspeccion
+
+@app.get("/inspeccion/{orden_id}", response_model=schemas.InspeccionResponse)
+def obtener_inspeccion(orden_id: int, db: Session = Depends(get_db)):
+    inspeccion = db.query(models.InspeccionRecepcion).filter(models.InspeccionRecepcion.orden_id == orden_id).first()
+    if not inspeccion:
+        raise HTTPException(status_code=404, detail="No se encontró inspección para esta orden")
+    return inspeccion

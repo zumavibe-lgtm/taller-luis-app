@@ -1,0 +1,13 @@
+# Archivos Secretos (NUNCA SUBIR)
+credentials.json
+.env
+
+# Base de Datos (Se queda en tu compu local)
+taller.db
+*.sqlite3
+
+# Archivos temporales y de sistema
+__pycache__/
+logs/
+venv/
+prueba_sheets.py
