@@ -10,11 +10,17 @@ import models, schemas, auth
 import traceback 
 from logger import guardar_error_log 
 
-# --- IMPORTACIONES PARA GOOGLE SHEETS ---
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-# ----------------------------------------
-
+# --- CORRECCIÓN: GOOGLE SHEETS A PRUEBA DE FALLOS ---
+# Esto intenta importar Google. Si falla (porque no hay credenciales), 
+# simplemente desactiva esa función sin romper el sistema.
+try:
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+    print("✅ Librerías de Google cargadas correctamente.")
+except ImportError:
+    gspread = None
+    print("⚠️ Advertencia: gspread no está instalado. El bot de Sheets no funcionará.")
+# ----------------------------------------------------
 # Revisamos si existen las tablas y si no, las crea.
 models.Base.metadata.create_all(bind=engine)
 
