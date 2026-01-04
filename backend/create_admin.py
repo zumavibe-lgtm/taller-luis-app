@@ -1,4 +1,3 @@
-# backend/create_admin.py
 import sys
 import os
 
@@ -22,7 +21,7 @@ def crear_super_admin():
         # 2. Verificar si ya existe el admin
         usuario_existente = db.query(Usuario).filter(Usuario.username == "admin").first()
         if usuario_existente:
-            print("✅ El usuario 'admin' YA existe. No es necesario hacer nada.")
+            print("✅ El usuario 'admin' YA existe.")
             return
 
         # 3. Crear el usuario
@@ -34,17 +33,15 @@ def crear_super_admin():
             nombre="Administrador Sistema",
             password=password_encriptada,
             rol="admin",
-            permisos="todo" 
-            # Si tu modelo requiere email u otros campos obligatorios, agrégalos aquí
-            # email="admin@taller.com"
+            permisos="todo"
         )
         
         db.add(nuevo_admin)
         db.commit()
-        print("🚀 ¡Usuario 'admin' creado exitosamente con password 'admin123'!")
+        print("🚀 ¡Usuario 'admin' creado exitosamente!")
 
     except Exception as e:
-        print(f"❌ Error al crear admin: {e}")
+        print(f"❌ Error: {e}")
     finally:
         db.close()
 
