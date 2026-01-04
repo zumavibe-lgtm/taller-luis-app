@@ -1,180 +1,160 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 
+const API_URL = "https://taller-luis-app.onrender.com"
+
 function Configuracion() {
-  const [fallas, setFallas] = useState([])
-  
-  // Estado del formulario
-  const [nuevaFalla, setNuevaFalla] = useState({ nombre: "", precio: "" })
-  
-  // Estado para saber si estamos editando (Guarda el ID que se edita)
-  const [idEdicion, setIdEdicion] = useState(null)
+  const [diaCorte, setDiaCorte] = useState("28") // Valor por defecto
+  const [diasLaborales, setDiasLaborales] = useState({
+    Lunes: true, Martes: true, Miercoles: true, 
+    Jueves: true, Viernes: true, Sabado: true, Domingo: false
+  })
+  const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
-    cargarFallas()
+    cargarConfig()
   }, [])
 
-  const cargarFallas = async () => {
-    // CORREGIDO: URL limpia con una sola comilla al inicio y final
-    const res = await axios.get('https://api-taller-luis.onrender.com/config/fallas-comunes')
-    setFallas(res.data)
-  }
-
-  // Cargar datos en el formulario para editar
-  const iniciarEdicion = (falla) => {
-    setNuevaFalla({ 
-        nombre: falla.nombre_falla, 
-        precio: falla.precio_sugerido 
-    })
-    setIdEdicion(falla.id) // Activamos modo edición
-  }
-
-  // Cancelar edición y limpiar
-  const cancelarEdicion = () => {
-    setNuevaFalla({ nombre: "", precio: "" })
-    setIdEdicion(null) // Volvemos a modo agregar
-  }
-
-  const manejarEnvio = async (e) => {
-    e.preventDefault()
-    if (!nuevaFalla.nombre || !nuevaFalla.precio) return alert("Llena ambos campos")
-
+  const cargarConfig = async () => {
     try {
-        if (idEdicion) {
-            // MODO EDICIÓN (PUT)
-            // CORREGIDO: Usamos backticks (`) porque hay una variable ${idEdicion}
-            await axios.put(`https://api-taller-luis.onrender.com/config/fallas-comunes/${idEdicion}`, {
-                nombre_falla: nuevaFalla.nombre,
-                precio_sugerido: parseFloat(nuevaFalla.precio),
-                sistema_id: 2
-            })
-            alert("✅ Servicio actualizado correctamente")
-        } else {
-            // MODO CREACIÓN (POST)
-            // CORREGIDO: URL limpia
-            await axios.post('https://api-taller-luis.onrender.com/config/fallas-comunes', {
-                nombre_falla: nuevaFalla.nombre,
-                precio_sugerido: parseFloat(nuevaFalla.precio),
-                sistema_id: 2
-            })
-            alert("✅ Servicio agregado al catálogo")
+      const res = await axios.get(`${API_URL}/config/`)
+      const configs = res.data
+      
+      // 1. Cargar Día de Corte
+      const corte = configs.find(c => c.clave === "DIA_CORTE_MENSUAL")
+      if (corte) setDiaCorte(corte.valor)
+
+      // 2. Cargar Días Laborales
+      const dias = configs.find(c => c.clave === "DIAS_LABORALES")
+      if (dias) {
+        // Convertimos el string "Lunes,Martes" a objeto {Lunes: true...}
+        const listaDias = dias.valor.split(',')
+        const objetoDias = {
+            Lunes: listaDias.includes('Lunes'),
+            Martes: listaDias.includes('Martes'),
+            Miercoles: listaDias.includes('Miercoles'),
+            Jueves: listaDias.includes('Jueves'),
+            Viernes: listaDias.includes('Viernes'),
+            Sabado: listaDias.includes('Sabado'),
+            Domingo: listaDias.includes('Domingo'),
         }
+        setDiasLaborales(objetoDias)
+      }
+    } catch (error) {
+      console.error("Error cargando config", error)
+    }
+  }
 
-        // Limpiar todo después de guardar
-        cancelarEdicion()
-        cargarFallas()
+  const guardarCambios = async () => {
+    setGuardando(true)
+    try {
+        // 1. Guardar Día de Corte
+        await axios.post(`${API_URL}/config/`, {
+            clave: "DIA_CORTE_MENSUAL",
+            valor: diaCorte,
+            descripcion: "Día del mes para realizar el corte administrativo"
+        })
 
+        // 2. Guardar Días Laborales (Convertimos objeto a string "Lunes,Martes...")
+        const listaString = Object.keys(diasLaborales).filter(dia => diasLaborales[dia]).join(',')
+        
+        await axios.post(`${API_URL}/config/`, {
+            clave: "DIAS_LABORALES",
+            valor: listaString,
+            descripcion: "Días operativos del taller"
+        })
+
+        alert("✅ Configuración guardada correctamente")
     } catch (error) {
         console.error(error)
-        alert("Error al guardar")
+        alert("Error al guardar configuración")
+    } finally {
+        setGuardando(false)
     }
   }
 
-  const borrarFalla = async (id) => {
-    if(!confirm("¿Seguro que quieres borrar este servicio?")) return
-    try {
-        // CORREGIDO: Usamos backticks (`) para la variable ${id}
-        await axios.delete(`https://api-taller-luis.onrender.com/config/fallas-comunes/${id}`)
-        cargarFallas()
-    } catch (error) {
-        alert("Error al borrar")
-    }
+  const toggleDia = (dia) => {
+    setDiasLaborales({...diasLaborales, [dia]: !diasLaborales[dia]})
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{ color: '#1a237e' }}>⚙️ Configuración del Taller</h1>
-      <p>Administra la "Lista de Servicios" y precios sugeridos.</p>
-
-      {/* FORMULARIO INTELIGENTE (AGREGAR / EDITAR) */}
-      <div style={{ 
-          backgroundColor: idEdicion ? '#e3f2fd' : '#f5f5f5', // Cambia de color si editas
-          padding: '20px', 
-          borderRadius: '8px', 
-          marginBottom: '30px',
-          border: idEdicion ? '2px solid #2196f3' : '1px solid #ddd'
-      }}>
-        <h3 style={{ marginTop: 0 }}>
-            {idEdicion ? "✏️ Editando Servicio" : "+ Agregar Nuevo Servicio"}
-        </h3>
-        
-        <form onSubmit={manejarEnvio} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-            <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Nombre del Servicio:</label>
-                <input 
-                    type="text" placeholder="Ej: Cambio de Bujías"
-                    value={nuevaFalla.nombre}
-                    onChange={e => setNuevaFalla({...nuevaFalla, nombre: e.target.value})}
-                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-            </div>
-            <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Precio ($):</label>
-                <input 
-                    type="number" placeholder="0.00"
-                    value={nuevaFalla.precio}
-                    onChange={e => setNuevaFalla({...nuevaFalla, precio: e.target.value})}
-                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-            </div>
-            
-            {/* BOTÓN GUARDAR / ACTUALIZAR */}
-            <button type="submit" style={{ 
-                padding: '12px 20px', 
-                backgroundColor: idEdicion ? '#ff9800' : '#2196f3', // Azul o Naranja
-                color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' 
-            }}>
-                {idEdicion ? "GUARDAR CAMBIOS" : "AGREGAR"}
-            </button>
-
-            {/* BOTÓN CANCELAR (Solo aparece si editas) */}
-            {idEdicion && (
-                <button type="button" onClick={cancelarEdicion} style={{ 
-                    padding: '12px 20px', backgroundColor: '#9e9e9e',
-                    color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' 
-                }}>
-                    CANCELAR
-                </button>
-            )}
-        </form>
+    <div className="max-w-4xl mx-auto animate-fade-in">
+      
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-slate-800">⚙️ Configuración Maestra</h1>
+        <p className="text-slate-500">Define las reglas operativas del taller.</p>
       </div>
 
-      {/* TABLA DE SERVICIOS */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-        <thead>
-            <tr style={{ backgroundColor: '#37474f', color: 'white' }}>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Servicio / Falla</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Precio Sugerido</th>
-                <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {fallas.map(f => (
-                <tr key={f.id} style={{ borderBottom: '1px solid #ddd', backgroundColor: 'white' }}>
-                    <td style={{ padding: '10px' }}>{f.nombre_falla}</td>
-                    <td style={{ padding: '10px', color: 'green', fontWeight: 'bold' }}>${f.precio_sugerido}</td>
-                    <td style={{ padding: '10px', textAlign: 'center', display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                        
-                        {/* BOTÓN EDITAR */}
-                        <button 
-                            onClick={() => iniciarEdicion(f)}
-                            style={{ backgroundColor: '#ff9800', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            ✏️ Editar
-                        </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          {/* TARJETA 1: CIERRE MENSUAL */}
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-blue-100 p-2 rounded-lg text-2xl">📅</div>
+                  <h3 className="font-bold text-slate-700 text-lg">Cierre Mensual</h3>
+              </div>
+              
+              <p className="text-sm text-slate-500 mb-4">
+                  Selecciona el día límite para el corte administrativo. <br/>
+                  (Ej: Si pones 28, el sistema pedirá cierre el día 28 de cada mes).
+              </p>
 
-                        {/* BOTÓN BORRAR */}
-                        <button 
-                            onClick={() => borrarFalla(f.id)}
-                            style={{ backgroundColor: '#e53935', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                            🗑️ Borrar
-                        </button>
-                    </td>
-                </tr>
-            ))}
-        </tbody>
-      </table>
+              <div className="flex items-center gap-3">
+                  <span className="font-bold text-slate-700">Día de Corte:</span>
+                  <input 
+                    type="number" 
+                    min="1" max="31"
+                    value={diaCorte}
+                    onChange={(e) => setDiaCorte(e.target.value)}
+                    className="w-20 p-2 text-center text-xl font-bold border-2 border-slate-200 rounded focus:border-blue-500 outline-none"
+                  />
+              </div>
+          </div>
+
+          {/* TARJETA 2: DÍAS LABORALES */}
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-orange-100 p-2 rounded-lg text-2xl">🛠️</div>
+                  <h3 className="font-bold text-slate-700 text-lg">Días Laborales</h3>
+              </div>
+
+              <p className="text-sm text-slate-500 mb-4">
+                  Marca los días que abre el taller. Esto ayuda al sistema a calcular días inhábiles para reportes y cierres.
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                  {Object.keys(diasLaborales).map(dia => (
+                      <button
+                        key={dia}
+                        onClick={() => toggleDia(dia)}
+                        className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                            diasLaborales[dia] 
+                            ? 'bg-slate-800 text-white shadow-lg' 
+                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                        }`}
+                      >
+                        {dia.substring(0, 3)}
+                      </button>
+                  ))}
+              </div>
+              <p className="mt-4 text-xs font-mono text-slate-400">
+                  {/* Vista previa de lo que se guardará */}
+                  Estado: {Object.keys(diasLaborales).filter(d => diasLaborales[d]).join(', ')}
+              </p>
+          </div>
+
+      </div>
+
+      {/* BOTÓN DE GUARDAR */}
+      <div className="mt-8 text-right">
+          <button 
+            onClick={guardarCambios}
+            disabled={guardando}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-8 rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-50"
+          >
+              {guardando ? 'GUARDANDO...' : '💾 GUARDAR CONFIGURACIÓN'}
+          </button>
+      </div>
 
     </div>
   )

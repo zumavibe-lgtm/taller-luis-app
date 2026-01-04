@@ -1,225 +1,242 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import FormularioInspeccion from '../components/FormularioInspeccion' 
 
 function NuevaOrden() {
   const navigate = useNavigate()
+
+  // --- ESTADOS DE DATOS ---
+  const [placaBusqueda, setPlacaBusqueda] = useState("")
+  const [cliente, setCliente] = useState({ nombre: "", telefono: "", email: "" })
+  const [vehiculo, setVehiculo] = useState({ marca: "", modelo: "", anio: "", color: "", placas: "" })
+  const [mecanicoId, setMecanicoId] = useState("")
   
-  // --- ESTADOS (La memoria de la pantalla) ---
-  const [clientes, setClientes] = useState([])
-  const [vehiculos, setVehiculos] = useState([])
-  const [listaMecanicos, setListaMecanicos] = useState([]) 
-  
-  // Opción: ¿Es cliente nuevo?
-  const [esNuevoCliente, setEsNuevoCliente] = useState(false)
+  // --- CATALOGOS ---
+  const [listaClientes, setListaClientes] = useState([])
+  const [listaVehiculos, setListaVehiculos] = useState([])
+  const [listaUsuarios, setListaUsuarios] = useState([]) 
 
-  // Datos para buscar (Si el cliente ya existe)
-  const [busquedaCliente, setBusquedaCliente] = useState("")
-  const [busquedaVehiculo, setBusquedaVehiculo] = useState("")
+  // --- ESTADOS DE CONTROL ---
+  const [esClienteNuevo, setEsClienteNuevo] = useState(true)
+  const [mensaje, setMensaje] = useState("")
+  const [mostrarChecklist, setMostrarChecklist] = useState(false)
+  const [ordenCreadaId, setOrdenCreadaId] = useState(null)
 
-  // Datos para registrar (Si es NUEVO)
-  const [nuevoCliente, setNuevoCliente] = useState({ nombre_completo: "", telefono: "", email: "sin@email.com", rfc: "" })
-  const [nuevoVehiculo, setNuevoVehiculo] = useState({ marca: "", modelo: "", anio: 2020, placas: "", color: "", vin: "" })
+  const API_URL = "http://localhost:8000"
 
-  // Datos de la Orden (Lo que siempre se necesita)
-  const [formData, setFormData] = useState({
-    cliente_id: '',
-    vehiculo_id: '',
-    kilometraje: '',
-    nivel_gasolina: 50,
-    mecanico_asignado: ''
-  })
-
-  // Al iniciar, cargamos la lista de clientes, vehiculos Y MECÁNICOS
+  // 1. CARGAMOS LOS DATOS AL INICIAR
   useEffect(() => {
+    async function cargarCatalogos() {
+      try {
+        const resVehiculos = await axios.get(`${API_URL}/vehiculos/`)
+        const resClientes = await axios.get(`${API_URL}/clientes/`)
+        const resUsuarios = await axios.get(`${API_URL}/usuarios/`)
+        
+        setListaVehiculos(resVehiculos.data)
+        setListaClientes(resClientes.data)
+        
+        // --- 🔍 DIAGNÓSTICO DE ROLES ---
+        console.log("----- LISTA DE TODOS LOS USUARIOS ENCONTRADOS -----");
+        resUsuarios.data.forEach(u => {
+            console.log(`Usuario: ${u.nombre} | Rol guardado: "${u.rol}"`);
+        });
+        console.log("---------------------------------------------------");
+
+        // --- EL SUPER FILTRO ---
+        // 1. Convertimos a minúsculas
+        // 2. Quitamos acentos (á -> a)
+        // 3. Buscamos si contiene la palabra "mecanic"
+        const soloMecanicos = resUsuarios.data.filter(u => {
+            if (!u.rol) return false; // Si no tiene rol, lo ignoramos
+            
+            // Truco para quitar acentos y hacer minusculas
+            const rolLimpio = u.rol.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            
+            // Acepta: "mecanico", "mecanico a", "jefe mecanico", "tecnico mecanico"
+            return rolLimpio.includes('mecanic');
+        });
+
+        console.log("✅ Mecánicos Aprobados para la lista:", soloMecanicos);
+
+        if (soloMecanicos.length === 0) {
+            console.warn("⚠️ El filtro estricto no encontró a nadie. Mostrando TODOS por seguridad.");
+            setListaUsuarios(resUsuarios.data); // Plan B: Mostrar todos
+        } else {
+            setListaUsuarios(soloMecanicos);
+        }
+
+      } catch (error) {
+        console.error("Error cargando catálogos.", error)
+      }
+    }
     cargarCatalogos()
   }, [])
 
-  const cargarCatalogos = async () => {
-    try {
-      // 1. Cargar Clientes (URL CORREGIDA)
-      const resC = await axios.get('https://api-taller-luis.onrender.com/clientes/')
-      setClientes(resC.data)
+  // 2. BUSCAR POR PLACA
+  const buscarPlaca = () => {
+    const placaLimpia = placaBusqueda.trim().toUpperCase()
+    const vehiculoEncontrado = listaVehiculos.find(v => v.placas.toUpperCase() === placaLimpia)
 
-      // 2. Cargar Vehículos (URL CORREGIDA)
-      const resV = await axios.get('https://api-taller-luis.onrender.com/vehiculos/')
-      setVehiculos(resV.data)
-
-      // 3. Cargar Usuarios (Mecánicos) (URL CORREGIDA)
-      const resU = await axios.get('https://api-taller-luis.onrender.com/usuarios/')
-      
-      // Filtramos: Solo queremos ver Mecánicos o Admins en la lista
-      const soloMecanicos = resU.data.filter(usuario => 
-        usuario.rol === 'mecanico' || usuario.rol === 'admin' || !usuario.rol
-      );
-      setListaMecanicos(soloMecanicos);
-
-    } catch (error) { console.error("Error cargando datos:", error) }
-  }
-
-  // --- LÓGICA DE BÚSQUEDA ---
-  const manejarBusquedaCliente = (e) => {
-    const texto = e.target.value
-    setBusquedaCliente(texto)
-    const encontrado = clientes.find(c => c.nombre_completo === texto)
-    if (encontrado) setFormData({ ...formData, cliente_id: encontrado.id })
-    else setFormData({ ...formData, cliente_id: '' })
-  }
-
-  const manejarBusquedaVehiculo = (e) => {
-    const texto = e.target.value
-    setBusquedaVehiculo(texto)
-    const encontrado = vehiculos.find(v => `${v.marca} ${v.modelo} - ${v.placas}` === texto)
-    if (encontrado) setFormData({ ...formData, vehiculo_id: encontrado.id })
-    else setFormData({ ...formData, vehiculo_id: '' })
-  }
-
-  // --- LÓGICA CREAR TODO (Cliente -> Vehículo -> Orden) ---
-  const manejarEnvio = async (e) => {
-    e.preventDefault()
-    
-    let idFinalCliente = formData.cliente_id
-    let idFinalVehiculo = formData.vehiculo_id
-
-    try {
-        // CASO 1: Es Cliente Nuevo
-        if (esNuevoCliente) {
-            // 1. Crear Cliente (URL CORREGIDA)
-            const resC = await axios.post('https://api-taller-luis.onrender.com/clientes/', {
-                ...nuevoCliente, es_empresa: false
-            })
-            idFinalCliente = resC.data.id
-
-            // 2. Crear Vehículo (URL CORREGIDA)
-            const resV = await axios.post(`https://api-taller-luis.onrender.com/vehiculos/?cliente_id=${idFinalCliente}`, nuevoVehiculo)
-            idFinalVehiculo = resV.data.id
-        }
-
-        // Validar que tengamos IDs antes de crear la orden
-        if (!idFinalCliente || !idFinalVehiculo) {
-            alert("⚠️ Faltan datos del cliente o vehículo.")
-            return
-        }
-
-        // 3. Crear la Orden
-        const datosOrden = {
-            cliente_id: idFinalCliente,
-            vehiculo_id: idFinalVehiculo,
-            kilometraje: formData.kilometraje || 0,
-            nivel_gasolina: formData.nivel_gasolina,
-            mecanico_asignado: formData.mecanico_asignado || null 
-        }
-
-        // URL CORREGIDA
-        await axios.post('https://api-taller-luis.onrender.com/ordenes/', datosOrden)
-        alert("✅ ¡Orden y registros creados exitosamente!")
-        navigate('/recepcion')
-
-    } catch (error) {
-        console.error(error)
-        alert("Error al crear. Revisa que no falten datos obligatorios.")
+    if (vehiculoEncontrado) {
+      setVehiculo(vehiculoEncontrado)
+      const clienteEncontrado = listaClientes.find(c => c.id === vehiculoEncontrado.cliente_id)
+      if (clienteEncontrado) {
+        setCliente(clienteEncontrado)
+        setCliente({
+            ...clienteEncontrado,
+            nombre: clienteEncontrado.nombre_completo || clienteEncontrado.nombre 
+        })
+      }
+      setEsClienteNuevo(false)
+      setMensaje("✅ Cliente Frecuente Encontrado")
+    } else {
+      setVehiculo({ ...vehiculo, placas: placaLimpia })
+      setCliente({ nombre: "", telefono: "", email: "" })
+      setEsClienteNuevo(true)
+      setMensaje("⚠️ Vehículo no registrado. Ingresa los datos.")
     }
   }
 
+  // 3. GUARDAR LA ORDEN
+  const iniciarRecepcion = async (e) => {
+    e.preventDefault()
+    if (!mecanicoId) return alert("⚠️ Debes asignar un mecánico responsable.")
+
+    try {
+      let clienteIdFinal = null
+      let vehiculoIdFinal = null
+
+      if (esClienteNuevo) {
+        const resCliente = await axios.post(`${API_URL}/clientes/`, {
+            nombre_completo: cliente.nombre, 
+            telefono: cliente.telefono,
+            email: cliente.email || "sin@email.com"
+        })
+        clienteIdFinal = resCliente.data.id
+
+        const resVehiculo = await axios.post(`${API_URL}/vehiculos/`, {
+            marca: vehiculo.marca,
+            modelo: vehiculo.modelo,
+            anio: parseInt(vehiculo.anio),
+            placas: vehiculo.placas,
+            color: vehiculo.color,
+            cliente_id: clienteIdFinal
+        })
+        vehiculoIdFinal = resVehiculo.data.id
+      } else {
+        clienteIdFinal = cliente.id
+        vehiculoIdFinal = vehiculo.id
+      }
+
+      const resOrden = await axios.post(`${API_URL}/ordenes/`, {
+        cliente_id: clienteIdFinal,
+        vehiculo_id: vehiculoIdFinal,
+        kilometraje: 0, 
+        nivel_gasolina: 0,
+        mecanico_asignado: mecanicoId
+      })
+
+      setOrdenCreadaId(resOrden.data.id)
+      setMostrarChecklist(true) 
+
+    } catch (error) {
+      console.error("Error creando orden", error)
+      alert("Error al crear la orden. Revisa la consola (F12).")
+    }
+  }
+
+  const alTerminarChecklist = () => {
+    setMostrarChecklist(false)
+    navigate('/') 
+  }
+
+  if (mostrarChecklist) {
+      return (
+          <FormularioInspeccion 
+              ordenId={ordenCreadaId} 
+              alTerminar={alTerminarChecklist} 
+          />
+      )
+  }
+
   return (
-    <div style={{ maxWidth: '600px', margin: '20px auto', padding: '30px', boxShadow: '0 0 10px rgba(0,0,0,0.1)', borderRadius: '10px', backgroundColor: 'white', fontFamily: 'Arial' }}>
-      <h2 style={{ color: '#1a237e', marginTop: 0 }}>📝 Recepción de Vehículo</h2>
-      
-      <form onSubmit={manejarEnvio} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="max-w-3xl mx-auto p-8 bg-white shadow-xl rounded-xl mt-6 border border-slate-200">
+      <h2 className="text-3xl font-bold text-slate-800 mb-8 border-b pb-4 flex items-center gap-2">
+        🚘 Nueva Recepción
+      </h2>
+
+      {/* BARRA DE BÚSQUEDA */}
+      <div className="flex gap-3 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-inner">
+        <input 
+          type="text" 
+          placeholder="INGRESA PLACAS (EJ: XBN-123)"
+          className="flex-1 p-3 border border-slate-300 rounded-md text-xl uppercase font-bold tracking-widest text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+          value={placaBusqueda}
+          onChange={(e) => setPlacaBusqueda(e.target.value)}
+        />
+        <button 
+          onClick={buscarPlaca}
+          className="bg-slate-700 text-white px-8 py-2 rounded-md font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+        >
+          BUSCAR
+        </button>
+      </div>
+
+      {mensaje && (
+          <div className={`mb-6 p-3 rounded-md text-center font-bold text-sm ${esClienteNuevo ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+              {mensaje}
+          </div>
+      )}
+
+      <form onSubmit={iniciarRecepcion} className="space-y-6">
         
-        {/* --- SECCIÓN 1: CLIENTE --- */}
-        <div style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', color: '#d32f2f' }}>
-                <input 
-                    type="checkbox" 
-                    checked={esNuevoCliente} 
-                    onChange={(e) => setEsNuevoCliente(e.target.checked)} 
-                    style={{ width: '20px', height: '20px' }}
-                />
-                ¿Es Cliente Nuevo?
-            </label>
-
-            {!esNuevoCliente ? (
-                // MODO BÚSQUEDA
-                <div style={{ marginTop: '15px' }}>
-                    <label>🔍 Buscar Cliente Existente:</label>
-                    <input list="lista-clientes" type="text" placeholder="Escribe el nombre..." value={busquedaCliente} onChange={manejarBusquedaCliente} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
-                    <datalist id="lista-clientes">
-                        {clientes.map(c => <option key={c.id} value={c.nombre_completo} />)}
-                    </datalist>
-                </div>
-            ) : (
-                // MODO REGISTRO
-                <div style={{ display: 'grid', gap: '10px', marginTop: '15px', backgroundColor: '#fafafa', padding: '10px', borderRadius: '5px' }}>
-                    <input type="text" placeholder="Nombre Completo" value={nuevoCliente.nombre_completo} onChange={e => setNuevoCliente({...nuevoCliente, nombre_completo: e.target.value})} style={{ padding: '8px' }} required />
-                    <input type="text" placeholder="Teléfono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente({...nuevoCliente, telefono: e.target.value})} style={{ padding: '8px' }} required />
-                </div>
-            )}
-        </div>
-
-        {/* --- SECCIÓN 2: VEHÍCULO --- */}
-        <div style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-            {!esNuevoCliente ? (
-                // MODO BÚSQUEDA
-                <div>
-                    <label>🚗 Buscar Vehículo del Cliente:</label>
-                    <input list="lista-vehiculos" type="text" placeholder="Escribe placas o modelo..." value={busquedaVehiculo} onChange={manejarBusquedaVehiculo} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
-                    <datalist id="lista-vehiculos">
-                        {vehiculos.map(v => <option key={v.id} value={`${v.marca} ${v.modelo} - ${v.placas}`} />)}
-                    </datalist>
-                </div>
-            ) : (
-                // MODO REGISTRO
-                <div>
-                    <h4 style={{ margin: '0 0 10px 0' }}>Datos del Vehículo Nuevo:</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', backgroundColor: '#fafafa', padding: '10px', borderRadius: '5px' }}>
-                        <input type="text" placeholder="Marca (Ej: Nissan)" value={nuevoVehiculo.marca} onChange={e => setNuevoVehiculo({...nuevoVehiculo, marca: e.target.value})} style={{ padding: '8px' }} />
-                        <input type="text" placeholder="Modelo (Ej: Tsuru)" value={nuevoVehiculo.modelo} onChange={e => setNuevoVehiculo({...nuevoVehiculo, modelo: e.target.value})} style={{ padding: '8px' }} />
-                        <input type="number" placeholder="Año (Ej: 2015)" value={nuevoVehiculo.anio} onChange={e => setNuevoVehiculo({...nuevoVehiculo, anio: e.target.value})} style={{ padding: '8px' }} />
-                        <input type="text" placeholder="Placas" value={nuevoVehiculo.placas} onChange={e => setNuevoVehiculo({...nuevoVehiculo, placas: e.target.value.toUpperCase()})} style={{ padding: '8px' }} />
-                        <input type="text" placeholder="Color" value={nuevoVehiculo.color} onChange={e => setNuevoVehiculo({...nuevoVehiculo, color: e.target.value})} style={{ padding: '8px' }} />
-                    </div>
-                </div>
-            )}
-        </div>
-
-        {/* --- SECCIÓN 3: DETALLES DE ORDEN --- */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-            <div>
-                <label>Kilometraje:</label>
-                <input type="number" placeholder="Ej: 125000" value={formData.kilometraje} onChange={e => setFormData({...formData, kilometraje: e.target.value})} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
-            </div>
-            <div>
-                <label>Gasolina ({formData.nivel_gasolina}%):</label>
-                <input type="range" min="0" max="100" step="10" value={formData.nivel_gasolina} onChange={e => setFormData({...formData, nivel_gasolina: e.target.value})} style={{ width: '100%', marginTop: '15px' }} />
-            </div>
-        </div>
-
-        {/* --- ASIGNAR MECÁNICO --- */}
+        {/* SECCIÓN VEHÍCULO */}
         <div>
-            <label>🔧 Asignar Mecánico (Opcional):</label>
-            <select 
-                value={formData.mecanico_asignado} 
-                onChange={e => setFormData({...formData, mecanico_asignado: e.target.value})} 
-                style={{ width: '100%', padding: '10px', marginTop: '5px' }}
-            >
-                <option value="">-- Cualquiera disponible --</option>
-                {listaMecanicos.map(mecanico => (
-                    <option key={mecanico.id} value={mecanico.id}>
-                        {mecanico.nombre}
-                    </option>
-                ))}
-            </select>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Datos del Vehículo</h3>
+            <div className="grid grid-cols-2 gap-5">
+                <input placeholder="Marca (Ej: Nissan)" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.marca} onChange={e => setVehiculo({...vehiculo, marca: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Modelo (Ej: Versa)" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.modelo} onChange={e => setVehiculo({...vehiculo, modelo: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Año (Ej: 2020)" type="number" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.anio} onChange={e => setVehiculo({...vehiculo, anio: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Color" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.color} onChange={e => setVehiculo({...vehiculo, color: e.target.value})} disabled={!esClienteNuevo} required />
+            </div>
         </div>
 
-        {/* BOTONES */}
-        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-            <button type="button" onClick={() => navigate('/recepcion')} style={{ flex: 1, padding: '15px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Cancelar</button>
-            <button type="submit" style={{ flex: 1, padding: '15px', backgroundColor: '#2e7d32', color: 'white', fontWeight: 'bold', fontSize: '16px', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-                {esNuevoCliente ? "REGISTRAR Y CREAR" : "CREAR ORDEN"}
-            </button>
+        {/* SECCIÓN CLIENTE */}
+        <div className="pt-4 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Datos del Cliente</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <input placeholder="Nombre Completo" className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={cliente.nombre} onChange={e => setCliente({...cliente, nombre: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Teléfono / WhatsApp" className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={cliente.telefono} onChange={e => setCliente({...cliente, telefono: e.target.value})} disabled={!esClienteNuevo} required />
+            </div>
         </div>
 
+        {/* SECCIÓN MECÁNICO */}
+        <div className="pt-4 border-t border-slate-100">
+            <div className="bg-indigo-50 p-5 rounded-lg border border-indigo-100">
+                <label className="block text-indigo-900 font-bold mb-2">Asignar Mecánico Responsable</label>
+                <select 
+                    className="w-full p-3 border border-indigo-200 rounded-md bg-white text-slate-700 font-medium focus:ring-2 focus:ring-indigo-500 outline-none" 
+                    value={mecanicoId} 
+                    onChange={(e) => setMecanicoId(e.target.value)} 
+                    required
+                >
+                    <option value="">-- Seleccionar --</option>
+                    {listaUsuarios.map(u => (
+                        <option key={u.id} value={u.username}>
+                            {u.nombre}
+                        </option>
+                    ))}
+                </select>
+                <p className="text-xs text-indigo-400 mt-2">
+                    * Solo aparecen usuarios con rol "Mecánico".
+                </p>
+            </div>
+        </div>
+
+        <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-lg font-bold text-lg hover:bg-black transition-all shadow-lg mt-8 flex justify-center items-center gap-2">
+            🚀 CREAR ORDEN E INICIAR CHECKLIST
+        </button>
       </form>
     </div>
   )

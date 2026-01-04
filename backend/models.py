@@ -53,6 +53,15 @@ class CatFalla(Base):
     activo = Column(Boolean, default=True)
     sistema = relationship("CatSistema", back_populates="fallas")
 
+    # --- NUEVA CLASE PARA EL CATÁLOGO DE SERVICIOS ---
+class Servicio(Base):
+    __tablename__ = "servicios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, index=True)
+    precio_sugerido = Column(Float)
+    es_favorito = Column(Boolean, default=False) # <--- Aquí está la estrellita ⭐
+
 class Orden(Base):
     __tablename__ = "ordenes"
     id = Column(Integer, primary_key=True, index=True)
@@ -142,3 +151,87 @@ class InspeccionRecepcion(Base):
 
     # Relación con la orden
     orden = relationship("Orden", back_populates="inspeccion")
+
+    # ==========================================
+# 🧱 MÓDULO ERP Y CONTABILIDAD (NUEVO V2)
+# ==========================================
+
+# 1. LA CAJA NEGRA (AUDITORÍA)
+class Auditoria(Base):
+    __tablename__ = "auditoria"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    accion = Column(String)     # Ej: "ELIMINAR_ORDEN", "COBRO_CAJA", "CAMBIO_PRECIO"
+    detalle = Column(String)    # Ej: "Orden #45 cambió de $500 a $400"
+    fecha = Column(DateTime, default=datetime.now)
+    ip_origen = Column(String, nullable=True) # Para saber desde qué compu se hizo
+
+    usuario = relationship("Usuario")
+
+# 2. CONFIGURACIONES GLOBALES (DÍAS HÁBILES, FESTIVOS, ETC.)
+class Configuracion(Base):
+    __tablename__ = "configuraciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clave = Column(String, unique=True, index=True) # Ej: "DIA_CORTE_MENSUAL", "DIAS_HABILES"
+    valor = Column(String)      # Ej: "28", "L,M,X,J,V,S"
+    descripcion = Column(String, nullable=True)
+
+# 3. CIERRE DIARIO (EL CANDADO)
+class CierreDiario(Base):
+    __tablename__ = "cierres_diarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha_cierre = Column(DateTime, default=datetime.now)
+    
+    # Totales congelados
+    total_efectivo = Column(Float, default=0.0)
+    total_tarjeta = Column(Float, default=0.0)
+    total_transferencia = Column(Float, default=0.0)
+    total_ingresos = Column(Float, default=0.0) # Suma de todo
+    total_gastos = Column(Float, default=0.0)   # Gastos de caja chica
+    
+    saldo_final = Column(Float, default=0.0)
+    
+    usuario_responsable_id = Column(Integer, ForeignKey("usuarios.id"))
+    comentarios = Column(String, nullable=True)
+
+    usuario = relationship("Usuario")
+
+# 4. CIERRE MENSUAL (EL CORTE ADMINISTRATIVO)
+class CierreMensual(Base):
+    __tablename__ = "cierres_mensuales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(Integer) # 1 = Enero, 12 = Diciembre
+    anio = Column(Integer) # 2026
+    fecha_ejecucion = Column(DateTime, default=datetime.now)
+    
+    usuario_responsable_id = Column(Integer, ForeignKey("usuarios.id"))
+    estado = Column(String, default="cerrado") # abierto, cerrado
+
+    usuario = relationship("Usuario")
+
+# 5. MOVIMIENTOS DE CAJA (EL FLUJO DE DINERO DETALLADO)
+class MovimientoCaja(Base):
+    __tablename__ = "movimientos_caja"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    tipo = Column(String) # "INGRESO" (Cobro orden) o "EGRESO" (Gasto luz/agua)
+    monto = Column(Float)
+    metodo_pago = Column(String) # Efectivo, Tarjeta, Transferencia
+    referencia = Column(String, nullable=True) # Voucher o Clave de rastreo
+    
+    descripcion = Column(String) # "Cobro Orden #105" o "Pago de Luz CFE"
+    fecha = Column(DateTime, default=datetime.now)
+    
+    # Relaciones
+    usuario_id = Column(Integer, ForeignKey("usuarios.id")) # Quién hizo el movimiento
+    orden_id = Column(Integer, ForeignKey("ordenes.id"), nullable=True) # Si viene de una orden
+    cierre_diario_id = Column(Integer, ForeignKey("cierres_diarios.id"), nullable=True) # A qué cierre pertenece
+
+    usuario = relationship("Usuario")
+    orden = relationship("Orden")
+    cierre = relationship("CierreDiario")

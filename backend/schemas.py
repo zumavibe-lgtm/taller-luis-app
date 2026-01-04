@@ -68,12 +68,15 @@ class FallaCreate(BaseModel):
     precio_sugerido: float
     sistema_id: int
 
-# --- ÓRDENES (AQUÍ ESTÁ LA MAGIA QUE FALTABA) ---
+# --- ÓRDENES (AQUÍ ESTÁ LA CORRECCIÓN) ---
 class OrdenCreate(BaseModel):
     cliente_id: int
     vehiculo_id: int
-    kilometraje: int
-    nivel_gasolina: int
+    
+    # 👇 CAMBIO CRÍTICO: Ahora aceptan None (vacío) para no dar error
+    kilometraje: Optional[int] = None 
+    nivel_gasolina: Optional[int] = None
+    
     mecanico_asignado: Optional[str] = "Sin Asignar"
 
 class OrdenResponse(BaseModel):
@@ -82,17 +85,18 @@ class OrdenResponse(BaseModel):
     cliente_id: int
     vehiculo_id: int
     estado: str
-    kilometraje: int
-    mecanico_asignado: str
+    
+    # 👇 CAMBIO CRÍTICO: En la respuesta también aceptamos None
+    kilometraje: Optional[int] = None
+    
+    mecanico_asignado: Optional[str] = None # También lo hacemos opcional por si acaso
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
 
-    # --- ESTAS SON LAS 2 LÍNEAS NUEVAS QUE ARREGLAN TODO ---
-    # Esto permite que viajen los objetos completos, no solo los IDs
+    # Objetos anidados para el Frontend
     cliente: Optional[ClienteResponse] = None
     vehiculo: Optional[VehiculoResponse] = None
-    # -------------------------------------------------------
 
     class Config:
         from_attributes = True
@@ -153,5 +157,34 @@ class InspeccionResponse(InspeccionBase):
     id: int
     fecha_ingreso: datetime
     
+    class Config:
+        from_attributes = True
+
+# --- ESQUEMAS PARA SERVICIOS (CATÁLOGO) ---
+class ServicioBase(BaseModel):
+    nombre: str
+    precio_sugerido: float
+    es_favorito: bool = False
+
+class ServicioCreate(ServicioBase):
+    pass
+
+class Servicio(ServicioBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+# --- ESQUEMAS DE CONFIGURACIÓN ---
+class ConfigBase(BaseModel):
+    clave: str  # Ej: "DIA_CORTE"
+    valor: str  # Ej: "28"
+    descripcion: str | None = None
+
+class ConfigCreate(ConfigBase):
+    pass
+
+class Configuracion(ConfigBase):
+    id: int
     class Config:
         from_attributes = True

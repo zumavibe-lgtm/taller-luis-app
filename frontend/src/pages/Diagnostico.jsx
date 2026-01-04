@@ -1,26 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+
+const API_URL = "https://taller-luis-app.onrender.com"
 
 function Diagnostico() {
   const { id } = useParams()
   const navigate = useNavigate()
   
-  // Datos Generales
+  // Estados de datos
   const [orden, setOrden] = useState(null)
+  const [detalles, setDetalles] = useState([])
+  const [catalogoServicios, setCatalogoServicios] = useState([]) // Todos los servicios
   const [cargando, setCargando] = useState(true)
-  
-  // Diagnóstico (Fallas)
-  const [fallasComunes, setFallasComunes] = useState([])
-  const [fallasSeleccionadas, setFallasSeleccionadas] = useState([])
-  const [notaExtra, setNotaExtra] = useState("")
+  const [mostrarTodosServicios, setMostrarTodosServicios] = useState(false) // Toggle para ver los no favoritos
 
-  // Refacciones (Solicitudes)
-  const [listaDetalles, setListaDetalles] = useState([]) 
-  const [nuevaRefaccion, setNuevaRefaccion] = useState({
-    nombre_pieza: "",
-    traido_por_cliente: false
-  })
+  // Inputs
+  const [notaTecnica, setNotaTecnica] = useState("")
+  const [otraReparacion, setOtraReparacion] = useState("") // Por si escribe algo manual
+  const [nuevaRefaccion, setNuevaRefaccion] = useState("") // Solo nombre de pieza
 
   useEffect(() => {
     cargarDatos()
@@ -28,251 +26,311 @@ function Diagnostico() {
 
   const cargarDatos = async () => {
     try {
-      const resOrdenes = await axios.get('https://api-taller-luis.onrender.com/ordenes/')
-      const ordenEncontrada = resOrdenes.data.find(o => o.id == id)
-      setOrden(ordenEncontrada)
+      // 1. Cargar Orden
+      const resOrden = await axios.get(`${API_URL}/ordenes/`)
+      const encontrada = resOrden.data.find(o => o.id == id)
+      setOrden(encontrada)
 
-      const resFallas = await axios.get('https://api-taller-luis.onrender.com/config/fallas-comunes')
-      setFallasComunes(resFallas.data)
+      // 2. Cargar Catálogo de Servicios (Para los botones)
+      const resServicios = await axios.get(`${API_URL}/servicios/`)
+      setCatalogoServicios(resServicios.data)
 
+      // 3. Cargar Detalles actuales
       recargarDetalles()
-    } catch (error) { console.error(error) } finally { setCargando(false) }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setCargando(false)
+    }
   }
 
   const recargarDetalles = async () => {
-    try {
-        const res = await axios.get(`https://api-taller-luis.onrender.com/ordenes/${id}/detalles`)
-        setListaDetalles(res.data)
-    } catch (error) { console.error("Error cargando detalles") }
+      try {
+        const res = await axios.get(`${API_URL}/ordenes/${id}/detalles`)
+        setDetalles(res.data)
+      } catch (e) { console.error(e) }
   }
 
-  // --- FUNCIONES ---
-  const toggleFalla = (fallaId) => {
-    if (fallasSeleccionadas.includes(fallaId)) {
-      setFallasSeleccionadas(fallasSeleccionadas.filter(id => id !== fallaId))
-    } else {
-      setFallasSeleccionadas([...fallasSeleccionadas, fallaId])
-    }
+  // --- ACCIONES ---
+
+  // 1. AGREGAR SERVICIO DESDE BOTÓN (CATÁLOGO)
+  const agregarDesdeCatalogo = async (servicio) => {
+      try {
+          await axios.post(`${API_URL}/ordenes/${id}/refacciones`, {
+              nombre_pieza: `(Servicio) ${servicio.nombre}`, 
+              precio_unitario: servicio.precio_sugerido, // Guardamos el precio sugerido oculto (el mecánico no lo ve)
+              traido_por_cliente: false
+          })
+          recargarDetalles()
+      } catch (e) { alert("Error al agregar servicio") }
   }
 
-  const iniciarDiagnostico = async () => {
+  // 2. AGREGAR SERVICIO MANUAL (SI NO ESTÁ EN BOTONES)
+  const agregarReparacionManual = async () => {
+    if (!otraReparacion.trim()) return
     try {
-        await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=diagnostico`)
-        setOrden({...orden, estado: 'diagnostico'})
-    } catch (error) { alert("Error cambiando estado") }
-  }
-
-  const guardarDiagnostico = async () => {
-    if (fallasSeleccionadas.length === 0 && notaExtra.trim() === "") return alert("Selecciona fallas o escribe nota.")
-    try {
-        await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/diagnostico`, {
-            fallas_ids: fallasSeleccionadas,
-            nota_libre: notaExtra
+        await axios.post(`${API_URL}/ordenes/${id}/refacciones`, {
+            nombre_pieza: `(Servicio) ${otraReparacion}`, 
+            precio_unitario: 0, // Precio pendiente
+            traido_por_cliente: false
         })
-        alert("✅ Diagnóstico guardado")
-        setFallasSeleccionadas([]) 
-        setNotaExtra("")
-        recargarDetalles() 
-    } catch (error) { alert("Error al guardar") }
+        setOtraReparacion("")
+        recargarDetalles()
+    } catch (e) { alert("Error al agregar") }
   }
 
+  // 3. SOLICITAR REFACCIÓN (SOLO NOMBRE)
+  const solicitarRefaccion = async () => {
+    if (!nuevaRefaccion.trim()) return
+    try {
+        await axios.post(`${API_URL}/ordenes/${id}/refacciones`, {
+            nombre_pieza: nuevaRefaccion,
+            precio_unitario: 0, // Precio 0 porque el mecánico no cotiza
+            traido_por_cliente: false
+        })
+        setNuevaRefaccion("")
+        recargarDetalles()
+    } catch (e) { alert("Error al solicitar pieza") }
+  }
+
+  // 4. GUARDAR NOTA
+  const guardarNota = async () => {
+    if (!notaTecnica.trim()) return
+    try {
+        await axios.post(`${API_URL}/ordenes/${id}/diagnostico`, {
+            fallas_ids: [],
+            nota_libre: notaTecnica
+        })
+        setNotaTecnica("")
+        recargarDetalles()
+        alert("Nota guardada")
+    } catch (e) { alert("Error al guardar nota") }
+  }
+
+  // 5. CONTROL KANBAN
   const cambiarEstadoDetalle = async (detalleId, nuevoEstado) => {
     try {
-        await axios.put(`https://api-taller-luis.onrender.com/ordenes/detalles/${detalleId}/estado`, {
-            estado: nuevoEstado
-        })
+        await axios.put(`${API_URL}/ordenes/detalles/${detalleId}/estado`, { estado: nuevoEstado })
         recargarDetalles()
-    } catch (error) {
-        console.error(error)
-        alert("Error al actualizar tarea")
-    }
+    } catch (error) { alert("Error al actualizar") }
   }
 
-  const agregarRefaccion = async (e) => {
-    e.preventDefault()
-    if (!nuevaRefaccion.nombre_pieza) return alert("Escribe el nombre de la pieza")
-    
-    try {
-        await axios.post(`https://api-taller-luis.onrender.com/ordenes/${id}/refacciones`, {
-            nombre_pieza: nuevaRefaccion.nombre_pieza,
-            precio_unitario: 0, 
-            traido_por_cliente: nuevaRefaccion.traido_por_cliente
-        })
-        setNuevaRefaccion({ nombre_pieza: "", traido_por_cliente: false })
-        recargarDetalles()
-        alert("🔧 Tarea/Pieza agregada")
-    } catch (error) { alert("Error agregando pieza") }
-  }
-
+  // 6. FINALIZAR
   const finalizarOrdenCompleta = async () => {
-    const confirmacion = confirm("¿Estás seguro que el vehículo está 100% listo para entrega?");
-    if (!confirmacion) return;
-
+    if (!confirm("¿Confirmas que el trabajo técnico ha terminado?")) return
     try {
-        await axios.put(`https://api-taller-luis.onrender.com/ordenes/${id}/estado?nuevo_estado=terminado`)
-        alert("🏁 ¡Excelente! Vehículo marcado como TERMINADO.");
-        navigate('/'); 
-    } catch (error) { alert("Error al finalizar."); }
+        await axios.put(`${API_URL}/ordenes/${id}/estado?nuevo_estado=terminado`)
+        alert("🏁 Vehículo enviado a Recepción para entrega.")
+        navigate('/taller')
+    } catch (error) { alert("Error al finalizar") }
   }
 
-  // --- SEPARACIÓN INTELIGENTE DE DATOS ---
-  // 1. Tareas (Tienen botones y estado)
-  const tareas = listaDetalles.filter(d => d.tipo !== 'NOTA' && d.tipo !== 'nota');
+  // --- FILTROS VISUALES ---
+  const serviciosFavoritos = catalogoServicios.filter(s => s.es_favorito)
+  const serviciosOtros = catalogoServicios.filter(s => !s.es_favorito)
   
-  // 2. Notas (Solo texto informativo)
-  const notas = listaDetalles.filter(d => d.tipo === 'NOTA' || d.tipo === 'nota');
+  const tareasActivas = detalles.filter(d => d.tipo !== 'nota' && d.tipo !== 'NOTA')
+  const tareasPendientes = tareasActivas.filter(d => d.estado !== 'terminado').length
+  const todoListo = tareasActivas.length > 0 && tareasPendientes === 0
 
-  // 3. Calculadora: Solo nos importan las TAREAS para el 100%
-  const tareasPendientes = tareas.filter(d => d.estado !== 'terminado').length;
-  const todoListo = tareas.length > 0 && tareasPendientes === 0;
-
-  if (cargando) return <p style={{padding: '20px'}}>Cargando...</p>
-  if (!orden) return <p style={{padding: '20px'}}>Orden no encontrada</p>
+  if (cargando || !orden) return <div className="p-20 text-center font-bold text-slate-400">Cargando Taller...</div>
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto', paddingBottom: '80px' }}>
+    <div className="max-w-6xl mx-auto pb-20 animate-fade-in">
       
-      <button onClick={() => navigate('/')} style={{ marginBottom: '15px', padding: '10px' }}>← Volver</button>
-
-      <div style={{ backgroundColor: '#e3f2fd', padding: '20px', borderRadius: '10px', marginBottom: '20px', borderLeft: '5px solid #2196f3' }}>
-        <h1 style={{ margin: '0 0 5px 0', color: '#1565c0' }}>{orden.folio_visual}</h1>
-        <p style={{margin:0}}><strong>Estado Orden:</strong> {orden.estado.toUpperCase()}</p>
-      </div>
-
-      {orden.estado === 'recibido' && (
-        <button onClick={iniciarDiagnostico} style={{ width: '100%', padding: '15px', backgroundColor: '#ff9800', color: 'white', fontWeight: 'bold', fontSize: '16px', border: 'none', borderRadius: '8px', marginBottom: '30px' }}>
-            🛠️ COMENZAR DIAGNÓSTICO
+      {/* HEADER SIMPLE */}
+      <div className="flex justify-between items-center mb-6">
+        <button onClick={() => navigate('/taller')} className="text-slate-500 hover:text-slate-800 font-bold flex items-center gap-2">
+            ← Tablero
         </button>
-      )}
-
-      {/* SECCIÓN 1: REPORTE TÉCNICO */}
-      <h3>1. Reporte Técnico (Fallas):</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', marginBottom: '20px' }}>
-        {fallasComunes.map(falla => {
-            const seleccionado = fallasSeleccionadas.includes(falla.id)
-            return (
-                <button key={falla.id} onClick={() => toggleFalla(falla.id)} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: seleccionado ? '#ffebee' : 'white', color: seleccionado ? '#c62828' : '#333', borderColor: seleccionado ? '#c62828' : '#ddd', cursor: 'pointer' }}>
-                    {falla.nombre_falla}
-                </button>
-            )
-        })}
-      </div>
-      <textarea rows="3" placeholder="Notas / Fallas adicionales (Texto)..." value={notaExtra} onChange={(e) => setNotaExtra(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px' }} />
-      <button onClick={guardarDiagnostico} style={{ width: '100%', padding: '10px', backgroundColor: '#2e7d32', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '5px', marginBottom: '30px' }}>
-        💾 GUARDAR FALLAS Y NOTAS
-      </button>
-
-      {/* SECCIÓN 2: TAREAS MANUALES */}
-      <div style={{ backgroundColor: '#fff3e0', padding: '20px', borderRadius: '10px', border: '1px solid #ffe0b2', marginBottom: '30px' }}>
-        <h3 style={{ marginTop: 0, color: '#e65100' }}>2. Agregar Tarea / Refacción</h3>
-        <p style={{ fontSize: '14px', color: '#666' }}>Si detectas una falla nueva que requiere reparación, agrégala aquí para darle seguimiento.</p>
-        
-        <form onSubmit={agregarRefaccion} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: 2, minWidth: '200px' }}>
-                <label style={{ display: 'block', fontSize: '12px' }}>Descripción Tarea / Pieza:</label>
-                <input type="text" placeholder="Ej: Ajuste de Frenos" value={nuevaRefaccion.nombre_pieza} onChange={e => setNuevaRefaccion({...nuevaRefaccion, nombre_pieza: e.target.value})} style={{ width: '100%', padding: '8px' }} />
-            </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <label style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#d84315' }}>
-                    <input type="checkbox" checked={nuevaRefaccion.traido_por_cliente} onChange={e => setNuevaRefaccion({...nuevaRefaccion, traido_por_cliente: e.target.checked})} style={{ marginRight: '5px' }} />
-                    Traído por Cliente
-                </label>
-            </div>
-
-            <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#e65100', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + AGREGAR TAREA
-            </button>
-        </form>
+        <div className="text-right">
+             <h1 className="text-2xl font-black text-slate-800">{orden.folio_visual}</h1>
+             <p className="text-xs text-slate-400 font-bold uppercase">Mecánico: {orden.mecanico_asignado || 'Sin asignar'}</p>
+        </div>
       </div>
 
-      {/* SECCIÓN 3: TABLA DE TAREAS (ACCIONABLES) */}
-      <h3>📋 Lista de Tareas (Reparaciones):</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '30px' }}>
-        <thead>
-            <tr style={{ backgroundColor: '#eee', textAlign: 'left' }}>
-                <th style={{ padding: '10px' }}>Concepto</th>
-                <th style={{ padding: '10px' }}>Tipo</th>
-                <th style={{ padding: '10px' }}>Estatus</th>
-                <th style={{ padding: '10px' }}>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {tareas.map(d => (
-                <tr key={d.id} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '10px' }}>
-                        {d.falla_detectada}
-                        {d.es_refaccion_cliente && <span style={{ marginLeft: '5px', fontSize: '10px', backgroundColor: '#ffccbc', padding: '2px 5px', borderRadius: '4px' }}>CLIENTE</span>}
-                    </td>
-                    <td style={{ padding: '10px' }}>{d.tipo.toUpperCase()}</td>
-                    
-                    <td style={{ padding: '10px' }}>
-                        {d.estado === 'pendiente' && <span style={{backgroundColor: '#e0e0e0', padding: '4px 8px', borderRadius: '4px', fontSize: '12px'}}>Pendiente ⏳</span>}
-                        {d.estado === 'en_proceso' && <span style={{backgroundColor: '#bbdefb', color: '#0d47a1', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight:'bold'}}>En Proceso 🔧</span>}
-                        {d.estado === 'terminado' && <span style={{backgroundColor: '#c8e6c9', color: '#1b5e20', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight:'bold'}}>Terminado ✅</span>}
-                        {d.estado === 'pausado' && <span style={{backgroundColor: '#ffecb3', color: '#ff6f00', padding: '4px 8px', borderRadius: '4px', fontSize: '12px'}}>En Espera ✋</span>}
-                    </td>
+      {/* ÁREA DE TRABAJO */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          
+          {/* COLUMNA 1: SERVICIOS Y MANO DE OBRA */}
+          <div className="space-y-6">
+              
+              {/* BOTONERA DE SERVICIOS FAVORITOS */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">🛠️ Selección Rápida de Servicios</h3>
+                  
+                  {/* Grid de Botones Favoritos */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                      {serviciosFavoritos.map(servicio => (
+                          <button 
+                            key={servicio.id}
+                            onClick={() => agregarDesdeCatalogo(servicio)}
+                            className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-800 font-bold py-3 px-2 rounded-lg text-sm border border-blue-100 transition-all shadow-sm active:scale-95 flex flex-col items-center justify-center gap-1"
+                          >
+                              <span>🔧</span>
+                              {servicio.nombre}
+                          </button>
+                      ))}
+                      {serviciosFavoritos.length === 0 && <p className="text-xs text-slate-400 col-span-3 text-center">No hay favoritos configurados en Catálogos.</p>}
+                  </div>
 
-                    <td style={{ padding: '10px' }}>
-                        <div style={{display: 'flex', gap: '5px'}}>
-                            {d.estado === 'pendiente' && (
-                                <button onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')} style={{border:'1px solid #2196f3', background:'white', color:'#2196f3', borderRadius:'4px', cursor:'pointer', padding:'2px 8px'}}>▶ Iniciar</button>
-                            )}
-                            {d.estado === 'en_proceso' && (
-                                <>
-                                    <button onClick={() => cambiarEstadoDetalle(d.id, 'pausado')} style={{border:'1px solid #ff9800', background:'white', color:'#ff9800', borderRadius:'4px', cursor:'pointer', padding:'2px 8px'}}>✋</button>
-                                    <button onClick={() => cambiarEstadoDetalle(d.id, 'terminado')} style={{border:'none', background:'#4caf50', color:'white', borderRadius:'4px', cursor:'pointer', padding:'4px 8px'}}>✅ Terminar</button>
-                                </>
-                            )}
-                            {d.estado === 'pausado' && (
-                                <button onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')} style={{border:'none', background:'#2196f3', color:'white', borderRadius:'4px', cursor:'pointer', padding:'4px 8px'}}>▶ Reanudar</button>
-                            )}
-                             {d.estado === 'terminado' && (
-                                <small style={{color:'#4caf50', fontWeight:'bold'}}>Completo</small>
-                            )}
-                        </div>
-                    </td>
-                </tr>
-            ))}
-            {tareas.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center', color: '#999' }}>No hay tareas activas.</td></tr>}
-        </tbody>
-      </table>
+                  {/* Botones Secundarios (Toggle) */}
+                  {serviciosOtros.length > 0 && (
+                      <div className="mt-2">
+                          <button 
+                            onClick={() => setMostrarTodosServicios(!mostrarTodosServicios)}
+                            className="text-xs font-bold text-slate-400 hover:text-slate-600 underline w-full text-center mb-3"
+                          >
+                              {mostrarTodosServicios ? 'Ocultar otros servicios' : 'Ver otros servicios...'}
+                          </button>
+                          
+                          {mostrarTodosServicios && (
+                              <div className="grid grid-cols-2 gap-2 animate-fade-in bg-slate-50 p-3 rounded-lg">
+                                  {serviciosOtros.map(servicio => (
+                                      <button 
+                                        key={servicio.id}
+                                        onClick={() => agregarDesdeCatalogo(servicio)}
+                                        className="bg-white hover:bg-slate-200 text-slate-600 text-xs font-bold py-2 px-2 rounded border border-slate-200"
+                                      >
+                                          {servicio.nombre}
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
+                      </div>
+                  )}
 
-      {/* SECCIÓN 4: BITÁCORA DE NOTAS (SOLO TEXTO) */}
-      {notas.length > 0 && (
-          <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#fffde7', border: '1px solid #fff9c4', borderRadius: '8px' }}>
-              <h3 style={{ marginTop: 0, color: '#fbc02d' }}>📝 Notas y Observaciones:</h3>
-              <ul style={{ paddingLeft: '20px', color: '#555' }}>
-                  {notas.map(nota => (
-                      <li key={nota.id} style={{ marginBottom: '5px' }}>
-                          <strong>{nota.falla_detectada}</strong>
-                      </li>
-                  ))}
-              </ul>
+                  {/* Input Manual (Solo por si acaso) */}
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="¿Otro servicio no listado?" 
+                        className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:border-blue-400"
+                        value={otraReparacion}
+                        onChange={e => setOtraReparacion(e.target.value)}
+                      />
+                      <button onClick={agregarReparacionManual} className="bg-slate-200 text-slate-600 px-3 rounded font-bold hover:bg-slate-300 text-lg">+</button>
+                  </div>
+              </div>
+
+              {/* NOTAS TÉCNICAS */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <h3 className="font-bold text-slate-700 mb-2">📝 Notas / Fallas Detectadas</h3>
+                  <textarea 
+                    className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-lg h-20 text-sm focus:outline-none"
+                    placeholder="Escribe aquí observaciones técnicas..."
+                    value={notaTecnica}
+                    onChange={e => setNotaTecnica(e.target.value)}
+                  ></textarea>
+                  <button onClick={guardarNota} className="mt-2 text-yellow-700 font-bold text-xs hover:underline block text-right">
+                      Guardar Nota
+                  </button>
+              </div>
           </div>
-      )}
 
-      {/* --- BOTÓN MAESTRO --- */}
-      {tareas.length > 0 && (
-          <div style={{ marginTop: '20px', textAlign: 'center', padding: '20px', backgroundColor: todoListo ? '#e8f5e9' : '#f5f5f5', borderRadius: '10px', border: todoListo ? '2px solid #4caf50' : '1px solid #ddd' }}>
-            <h3 style={{ color: todoListo ? '#2e7d32' : '#666', marginTop: 0 }}>
-                {todoListo ? "🎉 ¡Vehículo Listo para Entrega!" : `⏳ Faltan ${tareasPendientes} tarea(s) por terminar`}
-            </h3>
-            
-            <button 
+          {/* COLUMNA 2: SOLICITUD DE REFACCIONES (SIN PRECIOS) */}
+          <div>
+              <div className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 h-full">
+                  <h3 className="font-bold text-gray-700 mb-4">🔩 Solicitar Refacciones</h3>
+                  <p className="text-xs text-gray-500 mb-4">Ingresa qué piezas necesitas. Recepción se encargará de cotizar y conseguirlas.</p>
+                  
+                  <div className="flex gap-2 mb-2">
+                    <input 
+                        type="text" 
+                        placeholder="Nombre de la pieza (Ej: Filtro de Aire)" 
+                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:border-gray-500 outline-none shadow-sm"
+                        value={nuevaRefaccion}
+                        onChange={e => setNuevaRefaccion(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && solicitarRefaccion()}
+                    />
+                  </div>
+
+                  <button onClick={solicitarRefaccion} className="w-full bg-gray-800 text-white py-3 rounded-lg font-bold hover:bg-black transition-colors shadow-lg">
+                      SOLICITAR PIEZA
+                  </button>
+
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-800">
+                      ℹ️ <strong>Nota:</strong> Al solicitar una pieza, aparecerá como "Pendiente". No podrás marcarla como "Listo" hasta que tengas la pieza física.
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      {/* TABLA DE SEGUIMIENTO (SIN PRECIOS) */}
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden mb-8">
+          <div className="bg-slate-800 p-4 flex justify-between items-center">
+              <h3 className="font-bold text-white">📋 Tareas y Refacciones Solicitadas</h3>
+              <span className="text-xs text-slate-300 bg-slate-700 px-2 py-1 rounded">Vista de Mecánico</span>
+          </div>
+          
+          <table className="w-full text-left">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b border-slate-200">
+                  <tr>
+                      <th className="p-4">Descripción</th>
+                      <th className="p-4">Tipo</th>
+                      <th className="p-4">Estado</th>
+                      <th className="p-4 text-center">Acciones</th>
+                  </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                  {detalles.map(d => (
+                      <tr key={d.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-bold text-slate-700">
+                              {d.falla_detectada}
+                          </td>
+                          <td className="p-4">
+                              {d.falla_detectada.includes('(Servicio)') || d.sistema_origen === 'Nota General' 
+                                ? <span className="text-blue-600 font-bold text-[10px] bg-blue-50 px-2 py-1 rounded border border-blue-100">SERVICIO</span>
+                                : <span className="text-gray-600 font-bold text-[10px] bg-gray-100 px-2 py-1 rounded border border-gray-200">REFACCIÓN</span>
+                              }
+                          </td>
+                          <td className="p-4">
+                                {d.estado === 'pendiente' && <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs font-bold">Pendiente ⏳</span>}
+                                {d.estado === 'en_proceso' && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold animate-pulse">En Proceso 🔧</span>}
+                                {d.estado === 'terminado' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Terminado ✅</span>}
+                                {d.estado === 'pausado' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">En Espera ✋</span>}
+                          </td>
+                          <td className="p-4 text-center">
+                                <div className="flex justify-center gap-2">
+                                    {d.estado === 'pendiente' && (
+                                        <button onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">▶ Iniciar</button>
+                                    )}
+                                    {d.estado === 'en_proceso' && (
+                                        <>
+                                            <button onClick={() => cambiarEstadoDetalle(d.id, 'pausado')} className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">✋</button>
+                                            <button onClick={() => cambiarEstadoDetalle(d.id, 'terminado')} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">✅ Listo</button>
+                                        </>
+                                    )}
+                                    {d.estado === 'pausado' && (
+                                        <button onClick={() => cambiarEstadoDetalle(d.id, 'en_proceso')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">▶ Reanudar</button>
+                                    )}
+                                    {d.estado === 'terminado' && <span className="text-green-600 font-bold text-xs">Completado</span>}
+                                </div>
+                          </td>
+                      </tr>
+                  ))}
+                  {detalles.length === 0 && (
+                      <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">No hay actividad registrada.</td></tr>
+                  )}
+              </tbody>
+          </table>
+      </div>
+
+      {/* FINALIZAR */}
+      {tareasActivas.length > 0 && (
+          <div className={`p-6 rounded-xl text-center border transition-all ${todoListo ? 'bg-green-50 border-green-400' : 'bg-slate-50 border-slate-200'}`}>
+              <h3 className={`text-lg font-bold mb-3 ${todoListo ? 'text-green-800' : 'text-slate-400'}`}>
+                  {todoListo ? "✅ Todos los trabajos marcados como TERMINADOS" : `⏳ Faltan ${tareasPendientes} servicios por terminar`}
+              </h3>
+              
+              <button 
                 disabled={!todoListo} 
                 onClick={finalizarOrdenCompleta}
-                style={{
-                    backgroundColor: todoListo ? '#1b5e20' : '#bdbdbd',
-                    color: 'white', fontSize: '20px', fontWeight: 'bold',
-                    padding: '20px 40px', border: 'none', borderRadius: '8px',
-                    cursor: todoListo ? 'pointer' : 'not-allowed',
-                    boxShadow: todoListo ? '0 4px 10px rgba(0,0,0,0.3)' : 'none'
-                }}
-            >
-                {todoListo ? "🏁 FINALIZAR VEHÍCULO" : "Completa todas las tareas para finalizar"}
-            </button>
-        </div>
+                className={`py-3 px-8 rounded-lg font-black text-lg shadow-md transition-all ${todoListo ? 'bg-green-600 text-white hover:bg-green-700 hover:scale-105' : 'bg-slate-300 text-slate-400 cursor-not-allowed'}`}
+              >
+                  {todoListo ? "🏁 TERMINAR Y ENTREGAR A RECEPCIÓN" : "Finaliza todo para cerrar la orden"}
+              </button>
+          </div>
       )}
 
     </div>

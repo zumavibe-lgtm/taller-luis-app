@@ -7,6 +7,9 @@ function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([])
   const [idEdicion, setIdEdicion] = useState(null)
 
+  // ⚠️ CORRECCIÓN CLAVE: Usamos tu servidor LOCAL
+  const API_URL = "http://localhost:8000"
+
   // --- FORMULARIO ---
   const [nuevoUsuario, setNuevoUsuario] = useState({
     nombre: "", username: "", password: "", email: "", rol: "mecanico", permisos: []
@@ -34,7 +37,8 @@ function AdminUsuarios() {
 
   const cargarUsuarios = async () => {
     try {
-        const res = await axios.get('https://api-taller-luis.onrender.com/usuarios/')
+        // CORREGIDO: Usamos localhost
+        const res = await axios.get(`${API_URL}/usuarios/`)
         setUsuarios(res.data)
     } catch (error) { console.error(error) }
   }
@@ -86,10 +90,12 @@ function AdminUsuarios() {
         if (idEdicion) {
             const datosParaEnviar = { ...nuevoUsuario }
             if (!datosParaEnviar.password) delete datosParaEnviar.password
-            await axios.put(`https://api-taller-luis.onrender.com/usuarios/${idEdicion}`, datosParaEnviar)
+            // CORREGIDO
+            await axios.put(`${API_URL}/usuarios/${idEdicion}`, datosParaEnviar)
             alert("✅ Usuario actualizado correctamente")
         } else {
-            await axios.post('https://api-taller-luis.onrender.com/usuarios/', nuevoUsuario)
+            // CORREGIDO
+            await axios.post(`${API_URL}/usuarios/`, nuevoUsuario)
             alert("✅ Usuario creado exitosamente")
         }
         cargarUsuarios()
@@ -101,18 +107,17 @@ function AdminUsuarios() {
 
   // --- LÓGICA DE PROTECCIÓN DE ADMIN ---
   const borrarUsuario = async (id, rolUsuario) => {
-    // 1. Contamos cuántos admins hay en total
     const totalAdmins = usuarios.filter(u => u.rol === 'admin').length
 
-    // 2. Si el usuario que queremos borrar ES admin Y solo queda 1 (o menos), prohibimos borrar
     if (rolUsuario === 'admin' && totalAdmins <= 1) {
-        return alert("🛑 ACCIÓN DENEGADA: No puedes eliminar al único Administrador del sistema. Crea otro admin primero.")
+        return alert("🛑 ACCIÓN DENEGADA: No puedes eliminar al único Administrador del sistema.")
     }
 
     if(!confirm("¿Estás seguro de ELIMINAR a este usuario?")) return
 
     try {
-        await axios.delete(`https://api-taller-luis.onrender.com/usuarios/${id}`)
+        // CORREGIDO
+        await axios.delete(`${API_URL}/usuarios/${id}`)
         cargarUsuarios()
     } catch (error) {
         alert("Error al eliminar usuario")
@@ -165,7 +170,7 @@ function AdminUsuarios() {
 
         {/* COLUMNA DERECHA: LISTA */}
         <div>
-            <h3>Personal Activo</h3>
+            <h3>Personal Activo (Local)</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                     <tr style={{ backgroundColor: '#ddd', textAlign: 'left' }}>
@@ -188,11 +193,11 @@ function AdminUsuarios() {
                             </td>
                             <td style={{ padding: '8px', textAlign:'center' }}>
                                 <button onClick={() => iniciarEdicion(u)} style={{ marginRight: '10px', cursor: 'pointer', border: 'none', background: 'transparent', fontSize: '18px' }}>✏️</button>
-                                {/* Pasamos el rol del usuario para verificar si es admin */}
                                 <button onClick={() => borrarUsuario(u.id, u.rol)} style={{ cursor: 'pointer', border: 'none', background: 'transparent', fontSize: '18px' }}>🗑️</button>
                             </td>
                         </tr>
                     ))}
+                    {usuarios.length === 0 && <tr><td colSpan="3" style={{padding:'20px', textAlign:'center'}}>No hay usuarios en la base de datos local.</td></tr>}
                 </tbody>
             </table>
         </div>
