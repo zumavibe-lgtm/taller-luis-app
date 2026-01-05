@@ -1,8 +1,12 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 from datetime import datetime
+
+# ==========================================
+# 👤 USUARIOS Y CLIENTES
+# ==========================================
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -37,6 +41,10 @@ class Vehiculo(Base):
     color = Column(String)
     cliente = relationship("Cliente", back_populates="vehiculos")
 
+# ==========================================
+# 🛠️ CATÁLOGOS TÉCNICOS
+# ==========================================
+
 class CatSistema(Base):
     __tablename__ = "cat_sistemas"
     id = Column(Integer, primary_key=True, index=True)
@@ -53,14 +61,52 @@ class CatFalla(Base):
     activo = Column(Boolean, default=True)
     sistema = relationship("CatSistema", back_populates="fallas")
 
-    # --- NUEVA CLASE PARA EL CATÁLOGO DE SERVICIOS ---
 class Servicio(Base):
     __tablename__ = "servicios"
-
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, index=True)
     precio_sugerido = Column(Float)
-    es_favorito = Column(Boolean, default=False) # <--- Aquí está la estrellita ⭐
+    es_favorito = Column(Boolean, default=False)
+
+# ==========================================
+# 📋 CATÁLOGOS DE GESTIÓN (¡LOS QUE FALTABAN!)
+# ==========================================
+
+class EstadoOrden(Base):
+    __tablename__ = "estados_orden"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True) # Ej: Pendiente, Terminado
+    descripcion = Column(String, nullable=True)
+    color = Column(String, default="#3b82f6") 
+
+class Categoria(Base):
+    __tablename__ = "categorias"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True) # Ej: Mecánica, Hojalatería
+    descripcion = Column(String, nullable=True)
+
+class MetodoPago(Base):
+    __tablename__ = "metodos_pago_catalogo"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True)
+    activo = Column(Boolean, default=True)
+
+# ==========================================
+# ⚙️ CONFIGURACIÓN DEL SISTEMA
+# ==========================================
+
+class Configuracion(Base):
+    __tablename__ = "configuracion"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre_taller = Column(String, default="Mi Taller Mecánico")
+    moneda = Column(String, default="MXN")
+    iva = Column(Float, default=16.0)
+    telefono = Column(String, nullable=True)
+    direccion = Column(String, nullable=True)
+
+# ==========================================
+# 🔧 OPERACIONES (ÓRDENES)
+# ==========================================
 
 class Orden(Base):
     __tablename__ = "ordenes"
@@ -68,27 +114,23 @@ class Orden(Base):
     folio_visual = Column(String, unique=True)
     sucursal_id = Column(Integer, default=1)
     
-    # Llaves foráneas (los números)
+    # Llaves foráneas
     cliente_id = Column(Integer, ForeignKey("clientes.id"))
     vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"))
     
-    # --- AQUÍ ESTÁ LA MAGIA QUE FALTABA ---
-    # Estas líneas conectan los IDs con las tablas reales
+    # Relaciones
     cliente = relationship("Cliente")
     vehiculo = relationship("Vehiculo")
-    # --------------------------------------
-
     inspeccion = relationship("InspeccionRecepcion", back_populates="orden", uselist=False)
     
-    # Estado de la orden
-    estado = Column(String, default='recibido')
-    
+    # Estado y Datos
+    estado = Column(String, default='Pendiente') # Coincide con nombres de EstadoOrden
     kilometraje = Column(Integer)
     nivel_gasolina = Column(Integer)
     mecanico_asignado = Column(String, default="Sin Asignar")
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Campos de cobro
+    # Cobro
     saldo_pendiente = Column(Float, default=0.0)
     total_cobrado = Column(Float, default=0.0)
     metodo_pago = Column(String, nullable=True)
@@ -152,85 +194,57 @@ class InspeccionRecepcion(Base):
     # Relación con la orden
     orden = relationship("Orden", back_populates="inspeccion")
 
-    # ==========================================
-# 🧱 MÓDULO ERP Y CONTABILIDAD (NUEVO V2)
+# ==========================================
+# 💰 FINANZAS Y AUDITORÍA
 # ==========================================
 
-# 1. LA CAJA NEGRA (AUDITORÍA)
 class Auditoria(Base):
     __tablename__ = "auditoria"
-
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
-    accion = Column(String)     # Ej: "ELIMINAR_ORDEN", "COBRO_CAJA", "CAMBIO_PRECIO"
-    detalle = Column(String)    # Ej: "Orden #45 cambió de $500 a $400"
+    accion = Column(String)
+    detalle = Column(String)
     fecha = Column(DateTime, default=datetime.now)
-    ip_origen = Column(String, nullable=True) # Para saber desde qué compu se hizo
-
+    ip_origen = Column(String, nullable=True)
     usuario = relationship("Usuario")
 
-# 2. CONFIGURACIONES GLOBALES (DÍAS HÁBILES, FESTIVOS, ETC.)
-class Configuracion(Base):
-    __tablename__ = "configuraciones"
-
-    id = Column(Integer, primary_key=True, index=True)
-    clave = Column(String, unique=True, index=True) # Ej: "DIA_CORTE_MENSUAL", "DIAS_HABILES"
-    valor = Column(String)      # Ej: "28", "L,M,X,J,V,S"
-    descripcion = Column(String, nullable=True)
-
-# 3. CIERRE DIARIO (EL CANDADO)
 class CierreDiario(Base):
     __tablename__ = "cierres_diarios"
-
     id = Column(Integer, primary_key=True, index=True)
     fecha_cierre = Column(DateTime, default=datetime.now)
-    
-    # Totales congelados
     total_efectivo = Column(Float, default=0.0)
     total_tarjeta = Column(Float, default=0.0)
     total_transferencia = Column(Float, default=0.0)
-    total_ingresos = Column(Float, default=0.0) # Suma de todo
-    total_gastos = Column(Float, default=0.0)   # Gastos de caja chica
-    
+    total_ingresos = Column(Float, default=0.0)
+    total_gastos = Column(Float, default=0.0)
     saldo_final = Column(Float, default=0.0)
-    
     usuario_responsable_id = Column(Integer, ForeignKey("usuarios.id"))
     comentarios = Column(String, nullable=True)
-
     usuario = relationship("Usuario")
 
-# 4. CIERRE MENSUAL (EL CORTE ADMINISTRATIVO)
 class CierreMensual(Base):
     __tablename__ = "cierres_mensuales"
-
     id = Column(Integer, primary_key=True, index=True)
-    mes = Column(Integer) # 1 = Enero, 12 = Diciembre
-    anio = Column(Integer) # 2026
+    mes = Column(Integer)
+    anio = Column(Integer)
     fecha_ejecucion = Column(DateTime, default=datetime.now)
-    
     usuario_responsable_id = Column(Integer, ForeignKey("usuarios.id"))
-    estado = Column(String, default="cerrado") # abierto, cerrado
-
+    estado = Column(String, default="cerrado")
     usuario = relationship("Usuario")
 
-# 5. MOVIMIENTOS DE CAJA (EL FLUJO DE DINERO DETALLADO)
 class MovimientoCaja(Base):
     __tablename__ = "movimientos_caja"
-
     id = Column(Integer, primary_key=True, index=True)
-    
-    tipo = Column(String) # "INGRESO" (Cobro orden) o "EGRESO" (Gasto luz/agua)
+    tipo = Column(String) # INGRESO / EGRESO
     monto = Column(Float)
-    metodo_pago = Column(String) # Efectivo, Tarjeta, Transferencia
-    referencia = Column(String, nullable=True) # Voucher o Clave de rastreo
-    
-    descripcion = Column(String) # "Cobro Orden #105" o "Pago de Luz CFE"
+    metodo_pago = Column(String)
+    referencia = Column(String, nullable=True)
+    descripcion = Column(String)
     fecha = Column(DateTime, default=datetime.now)
     
-    # Relaciones
-    usuario_id = Column(Integer, ForeignKey("usuarios.id")) # Quién hizo el movimiento
-    orden_id = Column(Integer, ForeignKey("ordenes.id"), nullable=True) # Si viene de una orden
-    cierre_diario_id = Column(Integer, ForeignKey("cierres_diarios.id"), nullable=True) # A qué cierre pertenece
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    orden_id = Column(Integer, ForeignKey("ordenes.id"), nullable=True)
+    cierre_diario_id = Column(Integer, ForeignKey("cierres_diarios.id"), nullable=True)
 
     usuario = relationship("Usuario")
     orden = relationship("Orden")
