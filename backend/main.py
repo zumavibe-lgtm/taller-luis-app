@@ -31,13 +31,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- CONFIGURACIÓN DE PERMISOS (CORS) ---
 origenes_permitidos = [
-    "http://localhost:5173", # Para cuando trabajes en tu compu
-    "https://taller-frontend-arturo.onrender.com" # <--- ¡PON AQUÍ TU LINK REAL DE RENDER!
+    "http://localhost:5173",
+    "https://taller-frontend-arturo.onrender.com", # El viejo (por si acaso)
+    "https://taller-luis-app.onrender.com",        # <--- ¡ESTE ES EL CORRECTO SEGÚN TUS LOGS!
+    "https://taller-luis-app.onrender.com/"        # (Con barra al final, por seguridad)
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origenes_permitidos, # Usamos la lista segura
+    allow_origins=origenes_permitidos,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
