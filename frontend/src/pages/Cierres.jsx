@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
+// ✅ CONFIRMADO: Apuntando al Backend (api-)
 const API_URL = "https://api-taller-luis.onrender.com"
 
 function Cierres() {
@@ -24,7 +25,10 @@ function Cierres() {
     try {
       const res = await axios.get(`${API_URL}/cierres/hoy`)
       setDatosDiario(res.data)
-    } catch (error) { console.error(error) }
+    } catch (error) { 
+        console.error(error) 
+        setDatosDiario(null)
+    }
   }
 
   const ejecutarCierreDiario = async () => {
@@ -42,7 +46,7 @@ function Cierres() {
   const cargarMensual = async () => {
     try {
         const res = await axios.get(`${API_URL}/cierres/mensual/estado`)
-        setEstadoMensual(res.data)
+        setEstadoMensual(res.data || { estado: 'ERROR', mensaje: 'No se pudo cargar estado' })
     } catch (error) { console.error(error) }
   }
 
@@ -54,7 +58,7 @@ function Cierres() {
         alert("✅ MES CERRADO EXITOSAMENTE")
         cargarMensual()
     } catch (error) { 
-        alert("Error: " + error.response.data.detail) 
+        alert("Error: " + (error.response?.data?.detail || "Error desconocido")) 
     } 
     finally { setProcesando(false) }
   }
@@ -85,7 +89,7 @@ function Cierres() {
       {/* =======================================================
           VISTA: CIERRE DIARIO
          ======================================================= */}
-      {pestana === 'diario' && datosDiario && (
+      {pestana === 'diario' && (
         <>
             <div className="mb-4 text-right">
                 <p className="text-xs font-bold uppercase text-slate-400">Fecha Operativa</p>
@@ -102,19 +106,19 @@ function Cierres() {
                 </div>
             ) : (
                 <div className="animate-fade-in">
-                    {/* Tarjetas de Resumen Diario */}
+                    {/* Tarjetas de Resumen Diario - BLINDADO CON '|| 0' */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-500">
                             <p className="text-slate-400 text-xs font-bold uppercase">Efectivo</p>
-                            <h2 className="text-3xl font-black text-slate-800">${datosDiario.total_efectivo.toLocaleString()}</h2>
+                            <h2 className="text-3xl font-black text-slate-800">${(datosDiario.total_efectivo || 0).toLocaleString()}</h2>
                         </div>
                         <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
                             <p className="text-slate-400 text-xs font-bold uppercase">Bancos</p>
-                            <h2 className="text-3xl font-black text-slate-800">${(datosDiario.total_tarjeta + datosDiario.total_transferencia).toLocaleString()}</h2>
+                            <h2 className="text-3xl font-black text-slate-800">${((datosDiario.total_tarjeta || 0) + (datosDiario.total_transferencia || 0)).toLocaleString()}</h2>
                         </div>
                         <div className="bg-slate-800 text-white p-6 rounded-2xl shadow-lg">
                             <p className="opacity-50 text-xs font-bold uppercase">Total Día</p>
-                            <h2 className="text-4xl font-black">${datosDiario.total_ingresos.toLocaleString()}</h2>
+                            <h2 className="text-4xl font-black">${(datosDiario.total_ingresos || 0).toLocaleString()}</h2>
                         </div>
                     </div>
 

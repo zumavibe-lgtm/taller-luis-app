@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-const API_URL = "https://taller-luis-app.onrender.com"
+// ✅ CORREGIDO: Apuntando al Backend (api-)
+const API_URL = "https://api-taller-luis.onrender.com"
 
 function Reportes() {
   const [pestana, setPestana] = useState('financiero') // financiero | auditoria | estadisticas
   const [cargando, setCargando] = useState(false)
 
-  // --- VARIABLES SEPARADAS (Para evitar choques y pantallazos blancos) ---
+  // --- VARIABLES SEPARADAS ---
   const [listaFinanciera, setListaFinanciera] = useState([]) 
   const [listaAuditoria, setListaAuditoria] = useState([])
   const [objEstadisticas, setObjEstadisticas] = useState(null)
@@ -25,18 +26,24 @@ function Reportes() {
     try {
         if (pestana === 'financiero') {
             const res = await axios.get(`${API_URL}/reportes/financiero?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
-            setListaFinanciera(res.data || []) // Aseguramos que siempre sea lista
+            // 🛡️ BLINDAJE
+            setListaFinanciera(Array.isArray(res.data) ? res.data : []) 
         } 
         else if (pestana === 'auditoria') {
             const res = await axios.get(`${API_URL}/reportes/auditoria`)
-            setListaAuditoria(res.data || [])
+            // 🛡️ BLINDAJE
+            setListaAuditoria(Array.isArray(res.data) ? res.data : [])
         } 
         else if (pestana === 'estadisticas') {
             const res = await axios.get(`${API_URL}/reportes/estadisticas`)
+            // 🛡️ BLINDAJE (Si es null, usamos objeto con ceros)
             setObjEstadisticas(res.data || { total_ordenes_historico: 0, total_ingresos_historico: 0 })
         }
     } catch (error) {
         console.error("Error cargando reporte", error)
+        // En caso de error, limpiamos para no dejar basura
+        setListaFinanciera([])
+        setListaAuditoria([])
     } finally {
         setCargando(false)
     }
@@ -190,7 +197,7 @@ function Reportes() {
                                     <td className="p-4 text-slate-600 font-mono text-xs">{log.detalle}</td>
                                 </tr>
                             ))}
-                             {listaAuditoria.length === 0 && (
+                            {listaAuditoria.length === 0 && (
                                 <tr><td colSpan="3" className="p-10 text-center text-slate-400">Sin registros de auditoría.</td></tr>
                             )}
                         </tbody>

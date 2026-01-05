@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 
-const API_URL = "https://taller-luis-app.onrender.com"
+// ✅ CORREGIDO: Apuntando al Backend (api-)
+const API_URL = "https://api-taller-luis.onrender.com"
 
 function Taller() {
   const [ordenes, setOrdenes] = useState([])
@@ -17,12 +18,20 @@ function Taller() {
 
   const cargarTablero = async () => {
     try {
-      // Usamos el endpoint que ya corregimos en el backend
       const res = await axios.get(`${API_URL}/taller/tablero`)
-      setOrdenes(res.data)
-      setCargando(false)
+      
+      // 🛡️ BLINDAJE: Si no es arreglo, usamos lista vacía para evitar pantalla blanca
+      if (Array.isArray(res.data)) {
+        setOrdenes(res.data)
+      } else {
+        console.warn("Recibí datos incorrectos en Taller, uso lista vacía:", res.data)
+        setOrdenes([])
+      }
+      
     } catch (error) {
       console.error("Error cargando tablero", error)
+      setOrdenes([]) // En caso de error, lista vacía
+    } finally {
       setCargando(false)
     }
   }
@@ -134,19 +143,17 @@ function Taller() {
             </div>
 
             {/* 2. EN PROCESO (Diagnóstico y Reparación) */}
-<div className="bg-blue-50 rounded-xl flex flex-col h-full border border-blue-100">
-    <div className="p-3 border-b border-blue-100 bg-blue-50 rounded-t-xl flex justify-between">
-        <h3 className="font-bold text-blue-700 text-sm">🔧 EN REPARACIÓN</h3>
-        <span className="bg-blue-200 text-blue-700 px-2 rounded-full text-xs font-bold">
-            {/* AGREGAMOS 'diagnostico' AQUÍ 👇 */}
-            {ordenes.filter(o => ['diagnostico', 'revisión', 'reparacion', 'espera_refacciones'].includes(o.estado)).length}
-        </span>
-    </div>
-    <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
-        {/* Y AGREGAMOS 'diagnostico' TAMBIÉN AQUÍ 👇 */}
-        {ordenes.filter(o => ['diagnostico', 'revisión', 'reparacion', 'espera_refacciones'].includes(o.estado)).map(o => <Tarjeta key={o.id} data={o}/>)}
-    </div>
-</div>
+            <div className="bg-blue-50 rounded-xl flex flex-col h-full border border-blue-100">
+                <div className="p-3 border-b border-blue-100 bg-blue-50 rounded-t-xl flex justify-between">
+                    <h3 className="font-bold text-blue-700 text-sm">🔧 EN REPARACIÓN</h3>
+                    <span className="bg-blue-200 text-blue-700 px-2 rounded-full text-xs font-bold">
+                        {ordenes.filter(o => ['diagnostico', 'revisión', 'reparacion', 'espera_refacciones'].includes(o.estado)).length}
+                    </span>
+                </div>
+                <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
+                    {ordenes.filter(o => ['diagnostico', 'revisión', 'reparacion', 'espera_refacciones'].includes(o.estado)).map(o => <Tarjeta key={o.id} data={o}/>)}
+                </div>
+            </div>
 
             {/* 3. LISTOS */}
             <div className="bg-green-50 rounded-xl flex flex-col h-full border border-green-100">
