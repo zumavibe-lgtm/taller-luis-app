@@ -8,7 +8,7 @@ function AdminUsuarios() {
   const [idEdicion, setIdEdicion] = useState(null)
 
   // ⚠️ CORRECCIÓN CLAVE: Usamos tu servidor LOCAL
-  const API_URL = "http://localhost:8000"
+  const API_URL = "https://api-taller-luis.onrender.com"
 
   // --- FORMULARIO ---
   const [nuevoUsuario, setNuevoUsuario] = useState({

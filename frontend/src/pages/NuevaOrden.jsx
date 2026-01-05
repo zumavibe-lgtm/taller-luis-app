@@ -23,7 +23,7 @@ function NuevaOrden() {
   const [mostrarChecklist, setMostrarChecklist] = useState(false)
   const [ordenCreadaId, setOrdenCreadaId] = useState(null)
 
-  const API_URL = "http://localhost:8000"
+  const API_URL = "https://api-taller-luis.onrender.com"
 
   // 1. CARGAMOS LOS DATOS AL INICIAR
   useEffect(() => {

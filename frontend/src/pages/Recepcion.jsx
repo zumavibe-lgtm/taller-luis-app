@@ -14,7 +14,7 @@ function Recepcion() {
   const [detallesInspeccion, setDetallesInspeccion] = useState(null) 
   
   const navigate = useNavigate()
-  const API_URL = "http://localhost:8000" 
+  const API_URL = "https://api-taller-luis.onrender.com" 
 
   useEffect(() => {
     cargarOrdenes()
