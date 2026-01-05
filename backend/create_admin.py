@@ -8,42 +8,55 @@ from database import SessionLocal, engine
 from models import Base, Usuario
 from passlib.context import CryptContext
 
-# Configuración de hash
+# Configuración de encriptación (Igual que en tu sistema)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def crear_super_admin():
+def reset_admin_final():
     db = SessionLocal()
     try:
-        # 1. Crear las tablas si no existen
-        print("🛠️  Verificando tablas...")
+        print("🔧 Iniciando CORRECCIÓN de usuario Admin...")
+        
+        # 1. Asegurar tablas
         Base.metadata.create_all(bind=engine)
 
-        # 2. Verificar si ya existe el admin
-        usuario_existente = db.query(Usuario).filter(Usuario.username == "admin").first()
-        if usuario_existente:
-            print("✅ El usuario 'admin' YA existe.")
-            return
+        # 2. Buscar admin
+        user = db.query(Usuario).filter(Usuario.username == "admin").first()
+        
+        # Generamos el hash de "admin123"
+        pass_secreta = "admin123"
+        hash_nuevo = pwd_context.hash(pass_secreta)
 
-        # 3. Crear el usuario
-        print("👤 Creando usuario 'admin'...")
-        password_encriptada = pwd_context.hash("admin123")
+        if user:
+            print("♻️  El usuario existe. ACTUALIZANDO datos...")
+            # AQUÍ ESTABA EL ERROR: Usamos el nombre correcto de la columna
+            user.password_hash = hash_nuevo 
+            user.email = "admin@taller.com"
+            user.activo = True
+            user.rol = "admin"
+            user.permisos = "todo_acceso,admin_panel,caja,taller"
+        else:
+            print("🆕 Creando usuario 'admin' desde cero...")
+            user = Usuario(
+                username="admin",
+                nombre="Arturo Admin",
+                email="admin@taller.com",
+                password_hash=hash_nuevo, # Usamos el nombre correcto
+                rol="admin",
+                permisos="todo_acceso,admin_panel,caja,taller",
+                activo=True
+            )
+            db.add(user)
         
-        nuevo_admin = Usuario(
-            username="admin",
-            nombre="Administrador Sistema",
-            password=password_encriptada,
-            rol="admin",
-            permisos="todo"
-        )
-        
-        db.add(nuevo_admin)
         db.commit()
-        print("🚀 ¡Usuario 'admin' creado exitosamente!")
+        print(f"✅ ¡ÉXITO TOTAL! Usuario actualizado.")
+        print(f"👉 Usuario: admin")
+        print(f"👉 Password: {pass_secreta}")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Error grave: {e}")
+        db.rollback()
     finally:
         db.close()
 
 if __name__ == "__main__":
-    crear_super_admin()
+    reset_admin_final()
