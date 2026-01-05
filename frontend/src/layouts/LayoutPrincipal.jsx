@@ -1,21 +1,44 @@
+import { useState } from 'react'
 import Sidebar from '../components/Sidebar'
 
 const LayoutPrincipal = ({ children }) => {
+  const [menuAbierto, setMenuAbierto] = useState(false)
+
   return (
-    // 🎨 CAMBIO MAESTRO:
-    // En lugar de blanco, usamos un gris cálido 'Stone' (#fafaf9) o un beige muy sutil.
-    // Esto quita el "charolazo" del blanco y hace juego con el vino y el olivo.
+    // Fondo Stone 100 (#f5f5f4)
     <div className="flex min-h-screen bg-[#f5f5f4] font-sans text-slate-800">
       
-      {/* EL MENÚ LATERAL (Tu Borgoña Premium) */}
-      <Sidebar />
+      {/* 1. MENÚ LATERAL (Le pasamos el control de abrir/cerrar) */}
+      <Sidebar 
+        isOpen={menuAbierto} 
+        closeMenu={() => setMenuAbierto(false)} 
+      />
 
-      {/* EL CONTENIDO PRINCIPAL */}
-      {/* Agregamos 'ml-64' para dejar espacio al menú y padding para que respire */}
-      <main className="flex-1 ml-64 p-8 transition-all">
+      {/* 2. OVERLAY OSCURO (Sombra negra cuando abres el menú en celular) */}
+      {menuAbierto && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMenuAbierto(false)}
+        ></div>
+      )}
+
+      {/* 3. CONTENIDO PRINCIPAL */}
+      {/* En PC (md) dejamos margen izquierdo (ml-64). En Celular NO (ml-0) */}
+      <main className="flex-1 md:ml-64 transition-all duration-300 w-full">
         
-        {/* ENCABEZADO SUPERIOR (Opcional, para dar aire) */}
-        <div className="max-w-7xl mx-auto">
+        {/* BARRA SUPERIOR MÓVIL (Solo visible en celular) */}
+        <div className="md:hidden bg-[#8C2B32] text-white p-4 flex items-center justify-between shadow-md mb-4 sticky top-0 z-30">
+            <h1 className="font-black text-lg tracking-wide">TALLER APP</h1>
+            <button 
+                onClick={() => setMenuAbierto(true)}
+                className="text-2xl focus:outline-none"
+            >
+                ☰
+            </button>
+        </div>
+
+        {/* CONTENIDO REAL */}
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {children}
         </div>
 
