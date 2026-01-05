@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import FormularioInspeccion from '../components/FormularioInspeccion' 
+// ✅ 1. IMPORTAMOS EL MAPA INTERACTIVO
+import MapaCoche from '../components/MapaCoche'
 
 function NuevaOrden() {
   const navigate = useNavigate()
@@ -12,6 +14,10 @@ function NuevaOrden() {
   const [vehiculo, setVehiculo] = useState({ marca: "", modelo: "", anio: "", color: "", placas: "" })
   const [mecanicoId, setMecanicoId] = useState("")
   
+  // ✅ 2. ESTADO PARA LOS DAÑOS (GOLPES)
+  const [daños, setDaños] = useState([]) 
+  const [notasGolpes, setNotasGolpes] = useState("")
+
   // --- CATALOGOS ---
   const [listaClientes, setListaClientes] = useState([])
   const [listaVehiculos, setListaVehiculos] = useState([])
@@ -36,32 +42,15 @@ function NuevaOrden() {
         setListaVehiculos(resVehiculos.data)
         setListaClientes(resClientes.data)
         
-        // --- 🔍 DIAGNÓSTICO DE ROLES ---
-        console.log("----- LISTA DE TODOS LOS USUARIOS ENCONTRADOS -----");
-        resUsuarios.data.forEach(u => {
-            console.log(`Usuario: ${u.nombre} | Rol guardado: "${u.rol}"`);
-        });
-        console.log("---------------------------------------------------");
-
-        // --- EL SUPER FILTRO ---
-        // 1. Convertimos a minúsculas
-        // 2. Quitamos acentos (á -> a)
-        // 3. Buscamos si contiene la palabra "mecanic"
+        // --- FILTRO DE MECÁNICOS ---
         const soloMecanicos = resUsuarios.data.filter(u => {
-            if (!u.rol) return false; // Si no tiene rol, lo ignoramos
-            
-            // Truco para quitar acentos y hacer minusculas
+            if (!u.rol) return false;
             const rolLimpio = u.rol.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            
-            // Acepta: "mecanico", "mecanico a", "jefe mecanico", "tecnico mecanico"
             return rolLimpio.includes('mecanic');
         });
 
-        console.log("✅ Mecánicos Aprobados para la lista:", soloMecanicos);
-
         if (soloMecanicos.length === 0) {
-            console.warn("⚠️ El filtro estricto no encontró a nadie. Mostrando TODOS por seguridad.");
-            setListaUsuarios(resUsuarios.data); // Plan B: Mostrar todos
+            setListaUsuarios(resUsuarios.data); 
         } else {
             setListaUsuarios(soloMecanicos);
         }
@@ -98,7 +87,16 @@ function NuevaOrden() {
     }
   }
 
-  // 3. GUARDAR LA ORDEN
+  // ✅ 3. FUNCIÓN PARA MARCAR/DESMARCAR GOLPES
+  const toggleDaño = (parte) => {
+    if (daños.includes(parte)) {
+        setDaños(daños.filter(d => d !== parte))
+    } else {
+        setDaños([...daños, parte])
+    }
+  }
+
+  // 4. GUARDAR LA ORDEN
   const iniciarRecepcion = async (e) => {
     e.preventDefault()
     if (!mecanicoId) return alert("⚠️ Debes asignar un mecánico responsable.")
@@ -129,6 +127,8 @@ function NuevaOrden() {
         vehiculoIdFinal = vehiculo.id
       }
 
+      // NOTA: Por ahora guardamos la orden básica.
+      // Más adelante conectaremos el campo 'daños' al backend si lo necesitamos guardar.
       const resOrden = await axios.post(`${API_URL}/ordenes/`, {
         cliente_id: clienteIdFinal,
         vehiculo_id: vehiculoIdFinal,
@@ -161,7 +161,7 @@ function NuevaOrden() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-8 bg-white shadow-xl rounded-xl mt-6 border border-slate-200">
+    <div className="max-w-4xl mx-auto p-8 bg-white shadow-xl rounded-xl mt-6 border border-slate-200">
       <h2 className="text-3xl font-bold text-slate-800 mb-8 border-b pb-4 flex items-center gap-2">
         🚘 Nueva Recepción
       </h2>
@@ -202,6 +202,49 @@ function NuevaOrden() {
             </div>
         </div>
 
+        {/* ✅ SECCIÓN MAPA INTERACTIVO (GOLPES) */}
+        <div className="pt-6 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">📸 Inspección Visual (Golpes)</h3>
+            
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+                {/* EL MAPA */}
+                <div className="flex-1 w-full md:w-auto flex justify-center bg-slate-50 rounded-xl py-2">
+                    <MapaCoche seleccionados={daños} toggleParte={toggleDaño} />
+                </div>
+
+                {/* LISTA DE DAÑOS Y NOTAS */}
+                <div className="flex-1 bg-white p-6 rounded-xl border border-slate-200 w-full shadow-sm">
+                    <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase">Detalle de Daños:</h4>
+                    
+                    {daños.length === 0 ? (
+                        <div className="p-4 bg-green-50 text-green-700 rounded-lg text-sm font-medium border border-green-100 flex items-center gap-2">
+                            ✨ Vehículo sin daños visibles seleccionados.
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {daños.map(d => (
+                                <span key={d} className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-100 uppercase flex items-center gap-1 shadow-sm">
+                                    ⚠️ {d.replace(/_/g, " ")}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {/* CAMPO EXTRA: Notas */}
+                    <div className="mt-4">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Adicionales de Golpes</label>
+                        <textarea 
+                            className="w-full p-3 rounded border border-slate-300 text-sm focus:ring-2 focus:ring-red-200 outline-none transition-all"
+                            rows="3"
+                            placeholder="Ej: Rayón profundo en puerta derecha, calavera rota..."
+                            value={notasGolpes}
+                            onChange={(e) => setNotasGolpes(e.target.value)}
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {/* SECCIÓN CLIENTE */}
         <div className="pt-4 border-t border-slate-100">
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Datos del Cliente</h3>
@@ -234,7 +277,7 @@ function NuevaOrden() {
             </div>
         </div>
 
-        <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-lg font-bold text-lg hover:bg-black transition-all shadow-lg mt-8 flex justify-center items-center gap-2">
+        <button type="submit" className="w-full bg-[#8C2B32] text-white p-4 rounded-lg font-bold text-lg hover:bg-[#7a252b] transition-all shadow-lg mt-8 flex justify-center items-center gap-2 transform active:scale-[0.99]">
             🚀 CREAR ORDEN E INICIAR CHECKLIST
         </button>
       </form>
