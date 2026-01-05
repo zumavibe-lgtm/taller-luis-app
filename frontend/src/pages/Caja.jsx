@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 
 // Ajuste de IP para Windows
-const API_URL = "https://taller-luis-app.onrender.com"
+const API_URL = "https://api-taller-luis.onrender.com"
 
 function Caja() {
   const navigate = useNavigate()

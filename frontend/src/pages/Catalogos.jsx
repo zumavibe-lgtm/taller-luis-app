@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 
 // Usamos la IP local para evitar problemas de red en Windows
-const API_URL = "https://taller-luis-app.onrender.com"
+const API_URL = "https://api-taller-luis.onrender.com"
 
 function Catalogos() {
   const [servicios, setServicios] = useState([])

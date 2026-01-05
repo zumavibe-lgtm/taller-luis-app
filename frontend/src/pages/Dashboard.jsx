@@ -20,7 +20,7 @@ function Dashboard({ abrirInspeccion }) {
   const audioRef = useRef(new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg')); // Sonido de alerta
 
   // ⚠️ URL DE TU COMPUTADORA (NO LA NUBE)
-  const API_URL = "https://taller-luis-app.onrender.com"
+  const API_URL = "https://api-taller-luis.onrender.com"
 
   // --- 🔒 SEGURIDAD ---
   useEffect(() => {

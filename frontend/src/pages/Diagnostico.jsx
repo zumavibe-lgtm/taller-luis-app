@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
-const API_URL = "https://taller-luis-app.onrender.com"
+const API_URL = "https://api-taller-luis.onrender.com"
 
 function Diagnostico() {
   const { id } = useParams()
