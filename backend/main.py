@@ -1,3 +1,4 @@
+import os  # <--- NUEVO: Para verificar si existe el archivo secreto
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -11,8 +12,6 @@ import traceback
 from logger import guardar_error_log 
 
 # --- CORRECCIÓN: GOOGLE SHEETS A PRUEBA DE FALLOS ---
-# Esto intenta importar Google. Si falla (porque no hay credenciales), 
-# simplemente desactiva esa función sin romper el sistema.
 try:
     import gspread
     from oauth2client.service_account import ServiceAccountCredentials
@@ -20,7 +19,14 @@ try:
 except ImportError:
     gspread = None
     print("⚠️ Advertencia: gspread no está instalado. El bot de Sheets no funcionará.")
+
+# VERIFICACIÓN DE CREDENCIALES (Caja Fuerte Render)
+if os.path.exists("credentials.json"):
+    print("✅ SE ENCONTRÓ EL ARCHIVO 'credentials.json' (Caja Fuerte activa).")
+else:
+    print("⚠️ NO se encontró 'credentials.json'. Asegúrate de haberlo subido a Secret Files en Render.")
 # ----------------------------------------------------
+
 # Revisamos si existen las tablas y si no, las crea.
 models.Base.metadata.create_all(bind=engine)
 
@@ -32,9 +38,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # --- CONFIGURACIÓN DE PERMISOS (CORS) ---
 origenes_permitidos = [
     "http://localhost:5173",
-    "https://taller-frontend-arturo.onrender.com", # El viejo (por si acaso)
-    "https://taller-luis-app.onrender.com",        # <--- ¡ESTE ES EL CORRECTO SEGÚN TUS LOGS!
-    "https://taller-luis-app.onrender.com/"        # (Con barra al final, por seguridad)
+    "https://taller-frontend-arturo.onrender.com", 
+    "https://taller-luis-app.onrender.com",        
+    "https://taller-luis-app.onrender.com/"        
 ]
 
 app.add_middleware(
@@ -53,13 +59,14 @@ app.add_middleware(
 def guardar_en_sheets(orden_nueva, cliente_nombre, vehiculo_placas):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # Render creará este archivo desde tus "Secret Files"
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
         client = gspread.authorize(creds)
         
         # ID DE TU HOJA DE CÁLCULO
         SHEET_ID = "1y6nW9C8diwITs_lqpH6fjNlVuH90E4oiS5NTXfRm6kc" 
         
-        sheet = client.open_by_key(SHEET_ID).get_worksheet(0)  # Agarra la pestaña #1 por posición  # Pestaña 1
+        sheet = client.open_by_key(SHEET_ID).get_worksheet(0)  
         
         fila = [
             orden_nueva.folio_visual,      # Columna A: Folio
@@ -85,10 +92,8 @@ def guardar_checklist_sheets(datos, folio_visual):
         
         SHEET_ID = "1y6nW9C8diwITs_lqpH6fjNlVuH90E4oiS5NTXfRm6kc"
         
-        # Intentamos guardar en la misma hoja (o podrías cambiar .sheet1 por .get_worksheet(1) para otra pestaña)
-        sheet = client.open_by_key(SHEET_ID).get_worksheet(0)  # Agarra la pestaña #1 por posición 
+        sheet = client.open_by_key(SHEET_ID).get_worksheet(0) 
         
-        # Preparamos la fila con etiqueta de "CHECKLIST" para diferenciarla
         fila = [
             f"CHECKLIST -> {folio_visual}", # Columna A: Referencia
             f"Gasolina: {datos.nivel_gasolina}%", # Columna B
@@ -110,12 +115,21 @@ def guardar_checklist_sheets(datos, folio_visual):
 def read_root():
     return {"mensaje": "API del Taller Mecánico Activa con Google Sheets 🚀"}
 
-# --- 1. CLIENTES ---
+# --- 1. CLIENTES (CON REGLA DEL +52) ---
 @app.post("/clientes/", response_model=schemas.ClienteResponse)
 def crear_cliente(cliente: schemas.ClienteCreate, db: Session = Depends(get_db)):
+    
+    # 📞 LÓGICA DEL +52 AUTOMÁTICO
+    # 1. Quitamos espacios y guiones, dejamos solo números
+    telefono_limpio = "".join(filter(str.isdigit, cliente.telefono))
+    
+    # 2. Si son 10 dígitos (ej: 8181234567), agregamos 52 al inicio
+    if len(telefono_limpio) == 10:
+        telefono_limpio = "52" + telefono_limpio
+    
     nuevo_cliente = models.Cliente(
         nombre_completo=cliente.nombre_completo,
-        telefono=cliente.telefono,
+        telefono=telefono_limpio, # Guardamos el limpio con 52
         email=cliente.email,
         es_empresa=cliente.es_empresa,
         rfc=cliente.rfc
@@ -260,8 +274,8 @@ def actualizar_estado_orden(orden_id: int, nuevo_estado: str, db: Session = Depe
 class CobroSchema(BaseModel):
     total_cobrado: float
     metodo_pago: str 
-    referencia: str = None # Nuevo campo opcional (Voucher/Rastreo)
-    usuario_id: int = 1    # Por ahora hardcodeado a 1 (Admin), luego lo tomaremos del token real
+    referencia: str = None 
+    usuario_id: int = 1    
 
 @app.put("/ordenes/{orden_id}/cobrar")
 def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db)):
@@ -560,7 +574,6 @@ from sqlalchemy import func
 @app.get("/cierres/hoy")
 def previsualizar_cierre(db: Session = Depends(get_db)):
     # Buscamos todos los movimientos de HOY que NO tengan cierre asignado todavía
-    # OJO: En un sistema real filtraríamos por fecha exacta, aquí simplificamos buscando los "huerfanos"
     
     movimientos = db.query(models.MovimientoCaja).filter(
         models.MovimientoCaja.cierre_diario_id == None
@@ -777,7 +790,7 @@ def reporte_estadisticas(db: Session = Depends(get_db)):
 # ==========================================
 
 # 1. OBTENER ORDENES ACTIVAS (TABLERO)
-@app.get("/taller/tablero")
+@app.get("/taller/tablero", response_model=List[schemas.OrdenResponse]) 
 def tablero_kanban(db: Session = Depends(get_db)):
     # Traemos solo lo que NO está entregado ni cancelado
     return db.query(models.Orden).filter(
@@ -792,19 +805,10 @@ def mover_rapido(orden_id: int, nuevo_estado: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
     # Validamos que el estado sea uno de los permitidos
-    estados_validos = ['recibido', 'revisión', 'espera_refacciones', 'listo', 'entregado']
+    estados_validos = ['recibido', 'revisión', 'reparacion', 'espera_refacciones', 'listo', 'entregado']
     if nuevo_estado not in estados_validos:
         raise HTTPException(status_code=400, detail="Estado no válido")
 
     orden.estado = nuevo_estado
     db.commit()
     return {"mensaje": f"Orden movida a {nuevo_estado}"}
-
-# 1. OBTENER ORDENES ACTIVAS (TABLERO KANBAN)
-# 👇 AGREGAMOS: response_model=List[schemas.OrdenResponse]
-@app.get("/taller/tablero", response_model=List[schemas.OrdenResponse]) 
-def tablero_kanban(db: Session = Depends(get_db)):
-    # Traemos solo lo que NO está entregado ni cancelado
-    return db.query(models.Orden).filter(
-        models.Orden.estado.notin_(['entregado', 'cancelado'])
-    ).all()
