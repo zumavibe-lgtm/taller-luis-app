@@ -5,7 +5,7 @@ const LayoutPrincipal = ({ children }) => {
     // 🎨 CAMBIO MAESTRO:
     // En lugar de blanco, usamos un gris cálido 'Stone' (#fafaf9) o un beige muy sutil.
     // Esto quita el "charolazo" del blanco y hace juego con el vino y el olivo.
-    <div className="flex min-h-screen bg-[#fafaf9] font-sans text-slate-800">
+    <div className="flex min-h-screen bg-[#f5f5f4] font-sans text-slate-800">
       
       {/* EL MENÚ LATERAL (Tu Borgoña Premium) */}
       <Sidebar />
