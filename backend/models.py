@@ -69,20 +69,20 @@ class Servicio(Base):
     es_favorito = Column(Boolean, default=False)
 
 # ==========================================
-# 📋 CATÁLOGOS DE GESTIÓN (¡LOS QUE FALTABAN!)
+# 📋 CATÁLOGOS DE GESTIÓN
 # ==========================================
 
 class EstadoOrden(Base):
     __tablename__ = "estados_orden"
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True) # Ej: Pendiente, Terminado
+    nombre = Column(String, unique=True)
     descripcion = Column(String, nullable=True)
     color = Column(String, default="#3b82f6") 
 
 class Categoria(Base):
     __tablename__ = "categorias"
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True) # Ej: Mecánica, Hojalatería
+    nombre = Column(String, unique=True)
     descripcion = Column(String, nullable=True)
 
 class MetodoPago(Base):
@@ -124,11 +124,15 @@ class Orden(Base):
     inspeccion = relationship("InspeccionRecepcion", back_populates="orden", uselist=False)
     
     # Estado y Datos
-    estado = Column(String, default='Pendiente') # Coincide con nombres de EstadoOrden
+    estado = Column(String, default='Pendiente') 
     kilometraje = Column(Integer)
     nivel_gasolina = Column(Integer)
     mecanico_asignado = Column(String, default="Sin Asignar")
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    # ✅ NUEVOS CAMPOS PARA EL MAPA DE DAÑOS
+    lista_daños = Column(Text, nullable=True) # Guardará: "puerta, cofre, vidrio"
+    notas_golpes = Column(Text, nullable=True) # Guardará: "Rayón profundo..."
 
     # Cobro
     saldo_pendiente = Column(Float, default=0.0)

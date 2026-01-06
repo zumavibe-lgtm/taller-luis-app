@@ -1,4 +1,4 @@
-import os  # <--- NUEVO: Para verificar si existe el archivo secreto
+import os  # Para verificar si existe el archivo secreto
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -10,6 +10,7 @@ from datetime import datetime
 import models, schemas, auth
 import traceback 
 from logger import guardar_error_log 
+from sqlalchemy import func
 
 # --- CORRECCIÓN: GOOGLE SHEETS A PRUEBA DE FALLOS ---
 try:
@@ -55,7 +56,7 @@ app.add_middleware(
 # 🤖 FUNCIONES DE GOOGLE SHEETS
 # ---------------------------------------------------------
 
-# 1. GUARDAR ORDEN NUEVA (Datos Generales)
+# 1. GUARDAR ORDEN NUEVA (Datos Generales + GOLPES)
 def guardar_en_sheets(orden_nueva, cliente_nombre, vehiculo_placas):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -74,11 +75,14 @@ def guardar_en_sheets(orden_nueva, cliente_nombre, vehiculo_placas):
             cliente_nombre,                # Columna C: Cliente
             vehiculo_placas,               # Columna D: Placas
             orden_nueva.estado,            # Columna E: Estado
-            orden_nueva.mecanico_asignado  # Columna F: Mecánico
+            orden_nueva.mecanico_asignado, # Columna F: Mecánico
+            # 👇 NUEVAS COLUMNAS AGREGADAS
+            orden_nueva.lista_daños,       # Columna G: Golpes
+            orden_nueva.notas_golpes       # Columna H: Notas
         ]
         
         sheet.append_row(fila)
-        print(f"✅ Orden {orden_nueva.folio_visual} guardada en Sheets")
+        print(f"✅ Orden {orden_nueva.folio_visual} guardada en Sheets (Con Daños)")
         
     except Exception as e:
         print(f"⚠️ Error guardando Orden en Sheets: {e}")
@@ -168,12 +172,10 @@ def leer_vehiculos(db: Session = Depends(get_db)):
 # 📚 MÓDULO DE CATÁLOGOS (SERVICIOS)
 # ==========================================
 
-# 1. OBTENER TODOS LOS SERVICIOS
 @app.get("/servicios/", response_model=list[schemas.Servicio])
 def obtener_servicios(db: Session = Depends(get_db)):
     return db.query(models.Servicio).all()
 
-# 2. CREAR UN NUEVO SERVICIO
 @app.post("/servicios/", response_model=schemas.Servicio)
 def crear_servicio(servicio: schemas.ServicioCreate, db: Session = Depends(get_db)):
     nuevo_servicio = models.Servicio(
@@ -186,11 +188,9 @@ def crear_servicio(servicio: schemas.ServicioCreate, db: Session = Depends(get_d
     db.refresh(nuevo_servicio)
     return nuevo_servicio
 
-# 3. ACTUALIZAR SERVICIO (SIRVE PARA EDITAR O PARA DARLE FAVORITO ⭐)
 @app.put("/servicios/{servicio_id}", response_model=schemas.Servicio)
 def actualizar_servicio(servicio_id: int, servicio_actualizado: schemas.ServicioCreate, db: Session = Depends(get_db)):
     servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     
@@ -202,11 +202,9 @@ def actualizar_servicio(servicio_id: int, servicio_actualizado: schemas.Servicio
     db.refresh(servicio)
     return servicio
 
-# 4. BORRAR SERVICIO
 @app.delete("/servicios/{servicio_id}")
 def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
     servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     
@@ -214,7 +212,7 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"mensaje": "Servicio eliminado correctamente"}
 
-# --- 3. ÓRDENES (MODIFICADO PARA SHEETS) ---
+# --- 3. ÓRDENES (MODIFICADO PARA MAPA Y SHEETS) ---
 @app.post("/ordenes/", response_model=schemas.OrdenResponse)
 def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     # Buscamos si existen
@@ -224,6 +222,10 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     if not cliente or not vehiculo:
         raise HTTPException(status_code=404, detail="Cliente o Vehículo no encontrados")
     
+    # ✅ CONVERSIÓN DE LA LISTA DE GOLPES A TEXTO (Para que la BD no explote)
+    # Ejemplo: ["puerta", "vidrio"] -> "puerta, vidrio"
+    daños_texto = ", ".join(orden.lista_daños) if orden.lista_daños else "Sin daños visibles"
+    
     nueva_orden = models.Orden(
         cliente_id=orden.cliente_id,
         vehiculo_id=orden.vehiculo_id,
@@ -231,6 +233,10 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
         nivel_gasolina=orden.nivel_gasolina,
         estado="recibido", 
         mecanico_asignado=orden.mecanico_asignado,
+        
+        # 👇 AQUÍ GUARDAMOS LO DEL MAPA
+        lista_daños=daños_texto,
+        notas_golpes=orden.notas_golpes
     )
     db.add(nueva_orden)
     db.commit()
@@ -241,7 +247,7 @@ def crear_orden(orden: schemas.OrdenCreate, db: Session = Depends(get_db)):
     nueva_orden.folio_visual = folio
     db.commit()
 
-    # --- ENVIAR A GOOGLE SHEETS (ORDEN NUEVA) ---
+    # --- ENVIAR A GOOGLE SHEETS ---
     if cliente and vehiculo:
         guardar_en_sheets(nueva_orden, cliente.nombre_completo, vehiculo.placas)
     # ------------------------------
@@ -279,22 +285,18 @@ class CobroSchema(BaseModel):
 
 @app.put("/ordenes/{orden_id}/cobrar")
 def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db)):
-    # 1. Buscar la orden
     orden = db.query(models.Orden).filter(models.Orden.id == orden_id).first()
-    
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
     if orden.estado == "entregado":
         raise HTTPException(status_code=400, detail="Esta orden ya fue cobrada y entregada")
 
-    # 2. Actualizar la Orden (Datos básicos)
     orden.total_cobrado = cobro.total_cobrado
     orden.metodo_pago = cobro.metodo_pago
     orden.fecha_cierre = datetime.now() 
     orden.estado = "entregado"          
 
-    # 3. REGISTRAR EL MOVIMIENTO DE CAJA (CONTABILIDAD)
     nuevo_movimiento = models.MovimientoCaja(
         tipo="INGRESO",
         monto=cobro.total_cobrado,
@@ -303,11 +305,9 @@ def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db
         descripcion=f"Cobro Orden {orden.folio_visual}",
         usuario_id=cobro.usuario_id,
         orden_id=orden.id
-        # cierre_diario_id se llenará cuando hagamos el cierre del día
     )
     db.add(nuevo_movimiento)
 
-    # 4. REGISTRAR AUDITORÍA (SEGURIDAD)
     nueva_auditoria = models.Auditoria(
         usuario_id=cobro.usuario_id,
         accion="COBRO_ORDEN",
@@ -316,7 +316,6 @@ def cobrar_orden(orden_id: int, cobro: CobroSchema, db: Session = Depends(get_db
     )
     db.add(nueva_auditoria)
 
-    # 5. Guardar todo junto (Si falla uno, falla todo)
     try:
         db.commit()
         db.refresh(orden)
@@ -551,7 +550,6 @@ def crear_inspeccion(inspeccion: schemas.InspeccionCreate, db: Session = Depends
     db.refresh(nueva_inspeccion)
     
     # --- ENVIAR CHECKLIST A SHEETS ---
-    # Enviamos los datos a Google Sheets usando el Folio de la orden
     if orden:
          guardar_checklist_sheets(nueva_inspeccion, orden.folio_visual)
     # ---------------------------------
@@ -568,13 +566,10 @@ def obtener_inspeccion(orden_id: int, db: Session = Depends(get_db)):
     # ==========================================
 # 🔒 MÓDULO DE CIERRES (ERP)
 # ==========================================
-from sqlalchemy import func
 
-# 1. PREVISUALIZAR CIERRE (VER CUÁNTO LLEVAMOS HOY)
+# 1. PREVISUALIZAR CIERRE
 @app.get("/cierres/hoy")
 def previsualizar_cierre(db: Session = Depends(get_db)):
-    # Buscamos todos los movimientos de HOY que NO tengan cierre asignado todavía
-    
     movimientos = db.query(models.MovimientoCaja).filter(
         models.MovimientoCaja.cierre_diario_id == None
     ).all()
@@ -582,8 +577,6 @@ def previsualizar_cierre(db: Session = Depends(get_db)):
     total_efectivo = sum(m.monto for m in movimientos if m.metodo_pago == "Efectivo" and m.tipo == "INGRESO")
     total_tarjeta = sum(m.monto for m in movimientos if m.metodo_pago == "Tarjeta" and m.tipo == "INGRESO")
     total_transfer = sum(m.monto for m in movimientos if m.metodo_pago == "Transferencia" and m.tipo == "INGRESO")
-    
-    # Gastos (Salidas de dinero)
     total_gastos = sum(m.monto for m in movimientos if m.tipo == "EGRESO")
 
     return {
@@ -596,10 +589,9 @@ def previsualizar_cierre(db: Session = Depends(get_db)):
         "movimientos_pendientes": len(movimientos)
     }
 
-# 2. EJECUTAR CIERRE DIARIO (EL CANDADO FINAL)
+# 2. EJECUTAR CIERRE DIARIO
 @app.post("/cierres/diario")
 def ejecutar_cierre_diario(usuario_id: int = 1, db: Session = Depends(get_db)):
-    # 1. Recuperamos los datos (reutilizamos la lógica de arriba)
     movimientos = db.query(models.MovimientoCaja).filter(
         models.MovimientoCaja.cierre_diario_id == None
     ).all()
@@ -607,13 +599,11 @@ def ejecutar_cierre_diario(usuario_id: int = 1, db: Session = Depends(get_db)):
     if not movimientos:
         raise HTTPException(status_code=400, detail="No hay movimientos pendientes para cerrar.")
 
-    # 2. Calcular Totales Finales
     efectivo = sum(m.monto for m in movimientos if m.metodo_pago == "Efectivo" and m.tipo == "INGRESO")
     tarjeta = sum(m.monto for m in movimientos if m.metodo_pago == "Tarjeta" and m.tipo == "INGRESO")
     transfer = sum(m.monto for m in movimientos if m.metodo_pago == "Transferencia" and m.tipo == "INGRESO")
     gastos = sum(m.monto for m in movimientos if m.tipo == "EGRESO")
 
-    # 3. CREAR EL REGISTRO DE CIERRE (CONGELADO)
     nuevo_cierre = models.CierreDiario(
         total_efectivo=efectivo,
         total_tarjeta=tarjeta,
@@ -624,13 +614,11 @@ def ejecutar_cierre_diario(usuario_id: int = 1, db: Session = Depends(get_db)):
         usuario_responsable_id=usuario_id
     )
     db.add(nuevo_cierre)
-    db.flush() # Esto genera el ID del cierre sin confirmar todavía
+    db.flush()
 
-    # 4. MARCAR TODOS LOS MOVIMIENTOS COMO "CERRADOS"
     for mov in movimientos:
         mov.cierre_diario_id = nuevo_cierre.id
     
-    # 5. AUDITORÍA
     auditoria = models.Auditoria(
         usuario_id=usuario_id,
         accion="CIERRE_DIARIO",
@@ -643,19 +631,15 @@ def ejecutar_cierre_diario(usuario_id: int = 1, db: Session = Depends(get_db)):
     return {"mensaje": "Cierre Diario Exitoso", "id_cierre": nuevo_cierre.id}
 
 # ==========================================
-# 📅 CIERRE MENSUAL (CON VALIDACIONES)
+# 📅 CIERRE MENSUAL
 # ==========================================
 
-# 1. VERIFICAR SI PUEDO CERRAR EL MES
 @app.get("/cierres/mensual/estado")
 def verificar_estado_mensual(db: Session = Depends(get_db)):
     hoy = datetime.now()
-    
-    # A. Buscamos el día de corte configurado (Por defecto 28)
     config_corte = db.query(models.Configuracion).filter(models.Configuracion.clave == "DIA_CORTE_MENSUAL").first()
     dia_corte = int(config_corte.valor) if config_corte else 28
 
-    # B. Verificamos si ya existe un cierre para ESTE mes
     cierre_existente = db.query(models.CierreMensual).filter(
         models.CierreMensual.mes == hoy.month,
         models.CierreMensual.anio == hoy.year
@@ -664,38 +648,25 @@ def verificar_estado_mensual(db: Session = Depends(get_db)):
     if cierre_existente:
         return {"estado": "CERRADO", "mensaje": f"El mes de {hoy.strftime('%B')} ya fue cerrado."}
 
-    # C. Validar Regla 1: ¿Ya llegamos a la fecha de corte?
     if hoy.day < dia_corte:
-        return {
-            "estado": "BLOQUEADO", 
-            "mensaje": f"Aún es muy pronto. El corte es el día {dia_corte} y hoy es {hoy.day}."
-        }
+        return {"estado": "BLOQUEADO", "mensaje": f"Aún es muy pronto. El corte es el día {dia_corte}."}
 
-    # D. Validar Regla 2: ¿Ya se hizo el cierre diario de HOY?
-    # Buscamos un cierre diario con fecha de hoy
     cierre_diario_hoy = db.query(models.CierreDiario).filter(
         func.date(models.CierreDiario.fecha_cierre) == hoy.date()
     ).first()
 
     if not cierre_diario_hoy:
-        return {
-            "estado": "BLOQUEADO", 
-            "mensaje": "Primero debes realizar el Cierre Diario de hoy."
-        }
+        return {"estado": "BLOQUEADO", "mensaje": "Primero debes realizar el Cierre Diario de hoy."}
 
-    # Si pasa todas las pruebas...
     return {"estado": "DISPONIBLE", "mensaje": "Listo para generar el Cierre Mensual."}
 
-# 2. EJECUTAR CIERRE MENSUAL
 @app.post("/cierres/mensual")
 def ejecutar_cierre_mensual(usuario_id: int = 1, db: Session = Depends(get_db)):
-    # Re-verificamos (Doble seguridad)
     estado = verificar_estado_mensual(db)
     if estado["estado"] != "DISPONIBLE":
         raise HTTPException(status_code=400, detail=estado["mensaje"])
 
     hoy = datetime.now()
-
     nuevo_mensual = models.CierreMensual(
         mes=hoy.month,
         anio=hoy.year,
@@ -704,7 +675,6 @@ def ejecutar_cierre_mensual(usuario_id: int = 1, db: Session = Depends(get_db)):
     )
     db.add(nuevo_mensual)
     
-    # Auditoría
     auditoria = models.Auditoria(
         usuario_id=usuario_id, 
         accion="CIERRE_MENSUAL", 
@@ -716,45 +686,38 @@ def ejecutar_cierre_mensual(usuario_id: int = 1, db: Session = Depends(get_db)):
     db.commit()
     return {"mensaje": "Mes cerrado exitosamente. Contabilidad congelada."}
 
-    # ==========================================
+# ==========================================
 # ⚙️ MÓDULO DE CONFIGURACIÓN
 # ==========================================
 
-# 1. OBTENER TODAS LAS CONFIGURACIONES
 @app.get("/config/", response_model=list[schemas.Configuracion])
 def obtener_configuraciones(db: Session = Depends(get_db)):
     return db.query(models.Configuracion).all()
 
-# 2. GUARDAR O ACTUALIZAR UNA CONFIGURACIÓN (upsert)
 @app.post("/config/")
 def guardar_configuracion(config: schemas.ConfigCreate, db: Session = Depends(get_db)):
-    # Buscamos si ya existe esa clave (ej: "DIA_CORTE")
     existente = db.query(models.Configuracion).filter(models.Configuracion.clave == config.clave).first()
     
     if existente:
-        # Si existe, actualizamos el valor
         existente.valor = config.valor
         db.commit()
         db.refresh(existente)
         return existente
     else:
-        # Si no, creamos una nueva
         nueva = models.Configuracion(clave=config.clave, valor=config.valor, descripcion=config.descripcion)
         db.add(nueva)
         db.commit()
         db.refresh(nueva)
         return nueva
     
-    # ==========================================
+# ==========================================
 # 📊 MÓDULO DE REPORTES AVANZADOS
 # ==========================================
 
-# 1. REPORTE FINANCIERO (MOVIMIENTOS HISTÓRICOS)
 @app.get("/reportes/financiero")
 def reporte_financiero(fecha_inicio: str = None, fecha_fin: str = None, db: Session = Depends(get_db)):
     query = db.query(models.MovimientoCaja)
     
-    # Filtro de fechas (Formato esperado: YYYY-MM-DD)
     if fecha_inicio and fecha_fin:
         inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d")
         fin = datetime.strptime(fecha_fin, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
@@ -763,20 +726,13 @@ def reporte_financiero(fecha_inicio: str = None, fecha_fin: str = None, db: Sess
     movimientos = query.order_by(models.MovimientoCaja.fecha.desc()).all()
     return movimientos
 
-# 2. REPORTE DE AUDITORÍA (EL CHISMOSO)
 @app.get("/reportes/auditoria")
 def reporte_auditoria(limit: int = 100, db: Session = Depends(get_db)):
-    # Traemos los últimos 100 eventos de seguridad
     logs = db.query(models.Auditoria).order_by(models.Auditoria.fecha.desc()).limit(limit).all()
     return logs
 
-# 3. ESTADÍSTICAS (TOP SERVICIOS)
 @app.get("/reportes/estadisticas")
 def reporte_estadisticas(db: Session = Depends(get_db)):
-    # Contar cuántas veces se ha vendido cada servicio (basado en descripción de movimientos por ahora)
-    # NOTA: En el futuro, cuando usemos OrdenDetalle, esto será más preciso. 
-    # Por ahora, hacemos un conteo simple de las ventas totales.
-    
     total_ventas = db.query(models.Orden).filter(models.Orden.estado == 'entregado').count()
     total_ingresos = db.query(func.sum(models.Orden.total_cobrado)).scalar() or 0
     
@@ -785,26 +741,22 @@ def reporte_estadisticas(db: Session = Depends(get_db)):
         "total_ingresos_historico": total_ingresos
     }
 
-    # ==========================================
+# ==========================================
 # 🔧 MÓDULO DE TALLER (KANBAN)
 # ==========================================
 
-# 1. OBTENER ORDENES ACTIVAS (TABLERO)
 @app.get("/taller/tablero", response_model=List[schemas.OrdenResponse]) 
 def tablero_kanban(db: Session = Depends(get_db)):
-    # Traemos solo lo que NO está entregado ni cancelado
     return db.query(models.Orden).filter(
         models.Orden.estado.notin_(['entregado', 'cancelado'])
     ).all()
 
-# 2. MOVER DE ESTADO RÁPIDO
 @app.put("/taller/mover/{orden_id}")
 def mover_rapido(orden_id: int, nuevo_estado: str, db: Session = Depends(get_db)):
     orden = db.query(models.Orden).filter(models.Orden.id == orden_id).first()
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     
-    # Validamos que el estado sea uno de los permitidos
     estados_validos = ['recibido', 'revisión', 'reparacion', 'espera_refacciones', 'listo', 'entregado']
     if nuevo_estado not in estados_validos:
         raise HTTPException(status_code=400, detail="Estado no válido")

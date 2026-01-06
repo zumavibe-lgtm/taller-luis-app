@@ -68,16 +68,19 @@ class FallaCreate(BaseModel):
     precio_sugerido: float
     sistema_id: int
 
-# --- ÓRDENES (AQUÍ ESTÁ LA CORRECCIÓN) ---
+# --- ÓRDENES ---
 class OrdenCreate(BaseModel):
     cliente_id: int
     vehiculo_id: int
     
-    # 👇 CAMBIO CRÍTICO: Ahora aceptan None (vacío) para no dar error
     kilometraje: Optional[int] = None 
     nivel_gasolina: Optional[int] = None
-    
     mecanico_asignado: Optional[str] = "Sin Asignar"
+
+    # ✅ NUEVO: Recibe la lista desde el Frontend (ej: ["cofre", "puerta"])
+    lista_daños: Optional[List[str]] = [] 
+    # ✅ NUEVO: Recibe las notas
+    notas_golpes: Optional[str] = None
 
 class OrdenResponse(BaseModel):
     id: int
@@ -86,10 +89,13 @@ class OrdenResponse(BaseModel):
     vehiculo_id: int
     estado: str
     
-    # 👇 CAMBIO CRÍTICO: En la respuesta también aceptamos None
     kilometraje: Optional[int] = None
+    mecanico_asignado: Optional[str] = None
     
-    mecanico_asignado: Optional[str] = None # También lo hacemos opcional por si acaso
+    # ✅ NUEVOS CAMPOS EN LA RESPUESTA
+    lista_daños: Optional[str] = None # La BD devuelve un string largo
+    notas_golpes: Optional[str] = None
+
     total_cobrado: float = 0.0
     metodo_pago: Optional[str] = None
     creado_en: datetime
@@ -139,6 +145,7 @@ class InspeccionBase(BaseModel):
     estado_procedencia: str
     doc_factura: bool = False
     doc_tarjeta_circulacion: bool = False
+    doc_seguro: bool = False
     ext_pintura: str
     ext_llantas: str
     ext_calaveras: str
@@ -177,8 +184,8 @@ class Servicio(ServicioBase):
 
 # --- ESQUEMAS DE CONFIGURACIÓN ---
 class ConfigBase(BaseModel):
-    clave: str  # Ej: "DIA_CORTE"
-    valor: str  # Ej: "28"
+    clave: str  
+    valor: str  
     descripcion: str | None = None
 
 class ConfigCreate(ConfigBase):
