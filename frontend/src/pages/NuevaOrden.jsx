@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import FormularioInspeccion from '../components/FormularioInspeccion' 
-// ✅ 1. IMPORTAMOS EL MAPA INTERACTIVO
 import MapaCoche from '../components/MapaCoche'
 
 function NuevaOrden() {
@@ -14,7 +13,7 @@ function NuevaOrden() {
   const [vehiculo, setVehiculo] = useState({ marca: "", modelo: "", anio: "", color: "", placas: "" })
   const [mecanicoId, setMecanicoId] = useState("")
   
-  // ✅ 2. ESTADO PARA LOS DAÑOS (GOLPES)
+  // ESTADO PARA LOS DAÑOS (GOLPES)
   const [daños, setDaños] = useState([]) 
   const [notasGolpes, setNotasGolpes] = useState("")
 
@@ -42,7 +41,7 @@ function NuevaOrden() {
         setListaVehiculos(resVehiculos.data)
         setListaClientes(resClientes.data)
         
-        // --- FILTRO DE MECÁNICOS ---
+        // FILTRO DE MECÁNICOS
         const soloMecanicos = resUsuarios.data.filter(u => {
             if (!u.rol) return false;
             const rolLimpio = u.rol.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -87,7 +86,7 @@ function NuevaOrden() {
     }
   }
 
-  // ✅ 3. FUNCIÓN PARA MARCAR/DESMARCAR GOLPES
+  // 3. FUNCIÓN PARA MARCAR/DESMARCAR GOLPES
   const toggleDaño = (parte) => {
     if (daños.includes(parte)) {
         setDaños(daños.filter(d => d !== parte))
@@ -127,8 +126,6 @@ function NuevaOrden() {
         vehiculoIdFinal = vehiculo.id
       }
 
-      // NOTA: Por ahora guardamos la orden básica.
-      // Más adelante conectaremos el campo 'daños' al backend si lo necesitamos guardar.
       const resOrden = await axios.post(`${API_URL}/ordenes/`, {
         cliente_id: clienteIdFinal,
         vehiculo_id: vehiculoIdFinal,
@@ -161,23 +158,23 @@ function NuevaOrden() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-8 bg-white shadow-xl rounded-xl mt-6 border border-slate-200">
-      <h2 className="text-3xl font-bold text-slate-800 mb-8 border-b pb-4 flex items-center gap-2">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 bg-white shadow-xl rounded-xl mt-6 border border-slate-200">
+      <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6 border-b pb-4 flex items-center gap-2">
         🚘 Nueva Recepción
       </h2>
 
-      {/* BARRA DE BÚSQUEDA */}
-      <div className="flex gap-3 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-inner">
+      {/* 1. BARRA DE BÚSQUEDA */}
+      <div className="flex flex-col md:flex-row gap-3 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-inner">
         <input 
           type="text" 
           placeholder="INGRESA PLACAS (EJ: XBN-123)"
-          className="flex-1 p-3 border border-slate-300 rounded-md text-xl uppercase font-bold tracking-widest text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+          className="flex-1 p-3 border border-slate-300 rounded-md text-lg uppercase font-bold tracking-widest text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           value={placaBusqueda}
           onChange={(e) => setPlacaBusqueda(e.target.value)}
         />
         <button 
           onClick={buscarPlaca}
-          className="bg-slate-700 text-white px-8 py-2 rounded-md font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+          className="bg-slate-700 text-white px-8 py-3 rounded-md font-semibold hover:bg-slate-800 transition-colors shadow-sm w-full md:w-auto"
         >
           BUSCAR
         </button>
@@ -189,75 +186,36 @@ function NuevaOrden() {
           </div>
       )}
 
-      <form onSubmit={iniciarRecepcion} className="space-y-6">
+      <form onSubmit={iniciarRecepcion} className="space-y-8">
         
-        {/* SECCIÓN VEHÍCULO */}
+        {/* 2. DATOS DEL VEHÍCULO */}
         <div>
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Datos del Vehículo</h3>
-            <div className="grid grid-cols-2 gap-5">
-                <input placeholder="Marca (Ej: Nissan)" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.marca} onChange={e => setVehiculo({...vehiculo, marca: e.target.value})} disabled={!esClienteNuevo} required />
-                <input placeholder="Modelo (Ej: Versa)" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.modelo} onChange={e => setVehiculo({...vehiculo, modelo: e.target.value})} disabled={!esClienteNuevo} required />
-                <input placeholder="Año (Ej: 2020)" type="number" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.anio} onChange={e => setVehiculo({...vehiculo, anio: e.target.value})} disabled={!esClienteNuevo} required />
-                <input placeholder="Color" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={vehiculo.color} onChange={e => setVehiculo({...vehiculo, color: e.target.value})} disabled={!esClienteNuevo} required />
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+               🚗 Datos del Vehículo
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+                <input placeholder="Marca" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none w-full" value={vehiculo.marca} onChange={e => setVehiculo({...vehiculo, marca: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Modelo" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none w-full" value={vehiculo.modelo} onChange={e => setVehiculo({...vehiculo, modelo: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Año" type="number" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none w-full" value={vehiculo.anio} onChange={e => setVehiculo({...vehiculo, anio: e.target.value})} disabled={!esClienteNuevo} required />
+                <input placeholder="Color" className="p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none w-full" value={vehiculo.color} onChange={e => setVehiculo({...vehiculo, color: e.target.value})} disabled={!esClienteNuevo} required />
             </div>
         </div>
 
-        {/* ✅ SECCIÓN MAPA INTERACTIVO (GOLPES) */}
-        <div className="pt-6 border-t border-slate-100">
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">📸 Inspección Visual (Golpes)</h3>
-            
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-                {/* EL MAPA */}
-                <div className="flex-1 w-full md:w-auto flex justify-center bg-slate-50 rounded-xl py-2">
-                    <MapaCoche seleccionados={daños} toggleParte={toggleDaño} />
-                </div>
-
-                {/* LISTA DE DAÑOS Y NOTAS */}
-                <div className="flex-1 bg-white p-6 rounded-xl border border-slate-200 w-full shadow-sm">
-                    <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase">Detalle de Daños:</h4>
-                    
-                    {daños.length === 0 ? (
-                        <div className="p-4 bg-green-50 text-green-700 rounded-lg text-sm font-medium border border-green-100 flex items-center gap-2">
-                            ✨ Vehículo sin daños visibles seleccionados.
-                        </div>
-                    ) : (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {daños.map(d => (
-                                <span key={d} className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-100 uppercase flex items-center gap-1 shadow-sm">
-                                    ⚠️ {d.replace(/_/g, " ")}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                    
-                    {/* CAMPO EXTRA: Notas */}
-                    <div className="mt-4">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Adicionales de Golpes</label>
-                        <textarea 
-                            className="w-full p-3 rounded border border-slate-300 text-sm focus:ring-2 focus:ring-red-200 outline-none transition-all"
-                            rows="3"
-                            placeholder="Ej: Rayón profundo en puerta derecha, calavera rota..."
-                            value={notasGolpes}
-                            onChange={(e) => setNotasGolpes(e.target.value)}
-                        ></textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* SECCIÓN CLIENTE */}
+        {/* 3. DATOS DEL CLIENTE (Movidito arriba como pediste) */}
         <div className="pt-4 border-t border-slate-100">
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Datos del Cliente</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+               👤 Datos del Cliente
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input placeholder="Nombre Completo" className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={cliente.nombre} onChange={e => setCliente({...cliente, nombre: e.target.value})} disabled={!esClienteNuevo} required />
                 <input placeholder="Teléfono / WhatsApp" className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-400 outline-none" value={cliente.telefono} onChange={e => setCliente({...cliente, telefono: e.target.value})} disabled={!esClienteNuevo} required />
             </div>
         </div>
 
-        {/* SECCIÓN MECÁNICO */}
+        {/* 4. ASIGNAR MECÁNICO */}
         <div className="pt-4 border-t border-slate-100">
             <div className="bg-indigo-50 p-5 rounded-lg border border-indigo-100">
-                <label className="block text-indigo-900 font-bold mb-2">Asignar Mecánico Responsable</label>
+                <label className="block text-indigo-900 font-bold mb-2 uppercase text-xs tracking-wider">🛠️ Mecánico Responsable</label>
                 <select 
                     className="w-full p-3 border border-indigo-200 rounded-md bg-white text-slate-700 font-medium focus:ring-2 focus:ring-indigo-500 outline-none" 
                     value={mecanicoId} 
@@ -271,13 +229,69 @@ function NuevaOrden() {
                         </option>
                     ))}
                 </select>
-                <p className="text-xs text-indigo-400 mt-2">
-                    * Solo aparecen usuarios con rol "Mecánico".
-                </p>
             </div>
         </div>
 
-        <button type="submit" className="w-full bg-[#8C2B32] text-white p-4 rounded-lg font-bold text-lg hover:bg-[#7a252b] transition-all shadow-lg mt-8 flex justify-center items-center gap-2 transform active:scale-[0.99]">
+        {/* 5. MAPA INTERACTIVO (GOLPES) - Ahora al final */}
+        <div className="pt-6 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 text-center md:text-left">
+                📸 Inspección Visual (Golpes)
+            </h3>
+            
+            {/* Contenedor Flex centrado para móvil, fila para PC */}
+            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
+                
+                {/* EL MAPA (Centrado) */}
+                <div className="w-full md:w-auto flex justify-center bg-slate-50 rounded-xl py-4 px-2 shadow-inner border border-slate-100">
+                    <MapaCoche seleccionados={daños} toggleParte={toggleDaño} />
+                </div>
+
+                {/* LISTA DE DAÑOS Y NOTAS */}
+                <div className="flex-1 bg-white p-6 rounded-xl border border-slate-200 w-full shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700 text-sm uppercase">Detalle de Daños:</h4>
+                        
+                        {/* 🗑️ BOTÓN DE LIMPIAR / SIN DAÑOS */}
+                        <button 
+                            type="button" 
+                            onClick={() => setDaños([])}
+                            className="text-xs text-slate-400 hover:text-red-500 font-bold underline transition-colors"
+                        >
+                            🗑️ Limpiar / Sin Daños
+                        </button>
+                    </div>
+                    
+                    {daños.length === 0 ? (
+                        <div className="p-4 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-100 flex items-center justify-center gap-2 mb-4">
+                            ✨ Vehículo sin daños visibles.
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {daños.map(d => (
+                                <span key={d} className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-100 uppercase flex items-center gap-1 shadow-sm">
+                                    ⚠️ {d.replace(/_/g, " ")}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {/* CAMPO EXTRA: Notas */}
+                    <div className="mt-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Adicionales</label>
+                        <textarea 
+                            className="w-full p-3 rounded border border-slate-300 text-sm focus:ring-2 focus:ring-red-200 outline-none transition-all"
+                            rows="3"
+                            placeholder="Ej: Rayón profundo en puerta derecha, calavera rota..."
+                            value={notasGolpes}
+                            onChange={(e) => setNotasGolpes(e.target.value)}
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* 6. BOTÓN FINAL */}
+        <button type="submit" className="w-full bg-[#8C2B32] text-white p-4 rounded-lg font-bold text-lg hover:bg-[#7a252b] transition-all shadow-lg flex justify-center items-center gap-2 transform active:scale-[0.98]">
             🚀 CREAR ORDEN E INICIAR CHECKLIST
         </button>
       </form>
