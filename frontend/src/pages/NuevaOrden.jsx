@@ -201,7 +201,7 @@ function NuevaOrden() {
             </div>
         </div>
 
-        {/* 3. DATOS DEL CLIENTE (Movidito arriba como pediste) */}
+        {/* 3. DATOS DEL CLIENTE */}
         <div className="pt-4 border-t border-slate-100">
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                👤 Datos del Cliente
@@ -232,13 +232,12 @@ function NuevaOrden() {
             </div>
         </div>
 
-        {/* 5. MAPA INTERACTIVO (GOLPES) - Ahora al final */}
+        {/* 5. MAPA INTERACTIVO (GOLPES) */}
         <div className="pt-6 border-t border-slate-100">
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 text-center md:text-left">
                 📸 Inspección Visual (Golpes)
             </h3>
             
-            {/* Contenedor Flex centrado para móvil, fila para PC */}
             <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
                 
                 {/* EL MAPA (Centrado) */}
@@ -250,33 +249,40 @@ function NuevaOrden() {
                 <div className="flex-1 bg-white p-6 rounded-xl border border-slate-200 w-full shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                         <h4 className="font-bold text-slate-700 text-sm uppercase">Detalle de Daños:</h4>
-                        
-                        {/* 🗑️ BOTÓN DE LIMPIAR / SIN DAÑOS */}
-                        <button 
-                            type="button" 
-                            onClick={() => setDaños([])}
-                            className="text-xs text-slate-400 hover:text-red-500 font-bold underline transition-colors"
-                        >
-                            🗑️ Limpiar / Sin Daños
-                        </button>
                     </div>
                     
+                    {/* 👇 AQUÍ ESTÁ EL CAMBIO DE LÓGICA 👇 */}
                     {daños.length === 0 ? (
-                        <div className="p-4 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-100 flex items-center justify-center gap-2 mb-4">
-                            ✨ Vehículo sin daños visibles.
+                        <div className="p-6 bg-green-50 text-green-700 rounded-lg text-sm font-bold border border-green-200 flex flex-col items-center justify-center gap-2 text-center animate-fade-in">
+                            <span className="text-2xl">✨</span>
+                            <span>Vehículo verificado: <br/>SIN DAÑOS VISIBLES</span>
                         </div>
                     ) : (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {daños.map(d => (
-                                <span key={d} className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-100 uppercase flex items-center gap-1 shadow-sm">
-                                    ⚠️ {d.replace(/_/g, " ")}
-                                </span>
-                            ))}
+                        <div className="animate-fade-in">
+                            {/* BOTÓN ROJO GRANDE PARA BORRAR */}
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setDaños([])
+                                    alert("✅ Lista de daños borrada. Vehículo marcado como limpio.")
+                                }}
+                                className="w-full mb-4 bg-red-100 text-red-700 py-2 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors border border-red-200 flex items-center justify-center gap-2"
+                            >
+                                🗑️ BORRAR TODOS LOS DAÑOS
+                            </button>
+
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {daños.map(d => (
+                                    <span key={d} className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold border border-red-100 uppercase flex items-center gap-1 shadow-sm">
+                                        ⚠️ {d.replace(/_/g, " ")}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     )}
                     
                     {/* CAMPO EXTRA: Notas */}
-                    <div className="mt-2">
+                    <div className="mt-4">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Adicionales</label>
                         <textarea 
                             className="w-full p-3 rounded border border-slate-300 text-sm focus:ring-2 focus:ring-red-200 outline-none transition-all"
