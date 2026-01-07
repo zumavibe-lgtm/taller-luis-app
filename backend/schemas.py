@@ -182,11 +182,12 @@ class Servicio(ServicioBase):
     class Config:
         from_attributes = True
 
-# --- ESQUEMAS DE CONFIGURACIÓN ---
+# --- ESQUEMAS DE CONFIGURACIÓN (CORREGIDO) ---
 class ConfigBase(BaseModel):
-    clave: str  
-    valor: str  
-    descripcion: str | None = None
+    # ✅ Se volvieron opcionales para evitar el error de validación
+    clave: Optional[str] = None  
+    valor: Optional[str] = None  
+    descripcion: Optional[str] = None
 
 class ConfigCreate(ConfigBase):
     pass

@@ -92,17 +92,16 @@ class MetodoPago(Base):
     activo = Column(Boolean, default=True)
 
 # ==========================================
-# ⚙️ CONFIGURACIÓN DEL SISTEMA
+# ⚙️ CONFIGURACIÓN DEL SISTEMA (CORREGIDA)
 # ==========================================
 
 class Configuracion(Base):
     __tablename__ = "configuracion"
     id = Column(Integer, primary_key=True, index=True)
-    nombre_taller = Column(String, default="Mi Taller Mecánico")
-    moneda = Column(String, default="MXN")
-    iva = Column(Float, default=16.0)
-    telefono = Column(String, nullable=True)
-    direccion = Column(String, nullable=True)
+    # ✅ Se cambió para usar Clave-Valor y aceptar nulos
+    clave = Column(String, unique=True, nullable=True)  
+    valor = Column(String, nullable=True)  
+    descripcion = Column(String, nullable=True)
 
 # ==========================================
 # 🔧 OPERACIONES (ÓRDENES)
